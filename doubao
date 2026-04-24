@@ -1,0 +1,871 @@
+#!/usr/bin/env bash
+# doubao — 豆包 AI 命令行工具
+# 用法: doubao <command> [args...]
+set -euo pipefail
+
+# ── Config ──
+BB_CMD=""
+BB_USER_DATA="$HOME/.bb-browser/browser/user-data"
+BB_PORT_FILE="$HOME/.bb-browser/browser/cdp-port"
+BB_PORT=19825
+CHROME_EXE=""
+
+# ── Find bb-browser ──
+for candidate in bb-browser "$HOME/.local/bin/bb-browser" "$(dirname "$0")/node_modules/.bin/bb-browser"; do
+    if command -v "$candidate" &>/dev/null || [ -f "$candidate" ]; then
+        BB_CMD="$candidate"
+        break
+    fi
+done
+if [ -z "$BB_CMD" ]; then
+    echo "错误: bb-browser 未安装。运行: npm install -g bb-browser --prefix ~/.local"
+    exit 1
+fi
+
+# ── Auto-install adapters ──
+SRC="$(dirname "$0")/adapters/doubao"
+DST="$HOME/.bb-browser/sites/doubao"
+NEED_COPY=false
+if [ ! -d "$DST" ]; then NEED_COPY=true; fi
+if [ "$NEED_COPY" = "false" ]; then
+    for f in "$SRC"/*.js; do
+        base=$(basename "$f")
+        if [ ! -f "$DST/$base" ] || [ "$f" -nt "$DST/$base" ]; then
+            NEED_COPY=true; break
+        fi
+    done
+fi
+if [ "$NEED_COPY" = "true" ]; then
+    mkdir -p "$DST" && cp "$SRC"/*.js "$DST/" 2>/dev/null || true
+fi
+
+# ── Chrome management ──
+find_chrome() {
+    for c in google-chrome google-chrome-stable chromium-browser chromium; do
+        if command -v "$c" &>/dev/null; then echo "$c"; return 0; fi
+    done
+    return 1
+}
+
+CHROME_EXE="${CHROME_EXE:-$(find_chrome 2>/dev/null || true)}"
+
+can_connect() {
+    curl -sf --max-time 3 "http://127.0.0.1:${BB_PORT}/json/version" &>/dev/null
+}
+
+CHROME_PID_FILE="$HOME/.bb-browser/browser/headless-chrome.pid"
+
+ensure_headless() {
+    # If CDP already works, done
+    if can_connect; then return 0; fi
+
+    # Stop stale daemon
+    $BB_CMD daemon stop &>/dev/null 2>&1 || true
+    rm -f ~/.bb-browser/daemon.json 2>/dev/null
+
+    if [ -z "$CHROME_EXE" ]; then
+        echo "错误: 未找到 Chrome/Chromium，请安装后重试"
+        return 1
+    fi
+
+    mkdir -p "$BB_USER_DATA"
+
+    # Use xvfb-run to run Chrome invisibly (headless mode breaks WebSocket)
+    # Launch directly to doubao.com — no about:blank
+    local launch_cmd="$CHROME_EXE"
+    if command -v xvfb-run &>/dev/null; then
+        launch_cmd="xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' $CHROME_EXE"
+    fi
+
+    $launch_cmd \
+        --no-sandbox \
+        --remote-debugging-port="$BB_PORT" \
+        --user-data-dir="$BB_USER_DATA" \
+        --no-first-run \
+        --no-default-browser-check \
+        --disable-sync \
+        --disable-background-networking \
+        --disable-component-update \
+        --disable-features=Translate,MediaRouter \
+        --disable-session-crashed-bubble \
+        --hide-crash-restore-bubble \
+        --window-size=1280,800 \
+        "https://www.doubao.com/chat/" &>/dev/null &
+    echo $! > "$CHROME_PID_FILE"
+
+    # Wait up to 10s for CDP
+    for i in $(seq 1 20); do
+        sleep 0.5
+        if can_connect; then return 0; fi
+    done
+    echo "错误: Chrome 启动失败"
+    return 1
+}
+
+# ── Ensure daemon running ──
+ensure_daemon() {
+    if $BB_CMD daemon status &>/dev/null 2>&1; then return 0; fi
+    # Trigger daemon start via any command
+    $BB_CMD site list &>/dev/null 2>&1 || true
+    # Wait for daemon to connect
+    for i in $(seq 1 10); do
+        sleep 1
+        if $BB_CMD daemon status &>/dev/null 2>&1; then return 0; fi
+    done
+    return 1
+}
+
+# ── Get doubao tab ──
+get_doubao_tab() {
+    ensure_daemon || true
+    local status_out tab_ids
+    status_out=$($BB_CMD daemon status 2>&1) || true
+    tab_ids=$(echo "$status_out" | grep -E '^\s+[a-z0-9]{4}' | awk '{print $1}' | head -10) || true
+    for tid in $tab_ids; do
+        local url
+        url=$($BB_CMD eval "location.href" --tab "$tid" 2>/dev/null) || true
+        if echo "$url" | grep -q "doubao.com"; then
+            echo "$tid"
+            return 0
+        fi
+    done
+    # No doubao tab — open one
+    local open_out new_tab
+    open_out=$($BB_CMD open https://www.doubao.com/chat/ 2>&1) || true
+    # Parse tab ID: "Tab ID: HEXHEX" or "tab: hex"
+    new_tab=$(echo "$open_out" | grep -oiE '(Tab ID|tab):?\s*[A-Fa-z0-9]+' | grep -oE '[A-Fa-f0-9]{4,}' | head -1)
+    # Also try short tab ID from daemon status
+    if [ -z "$new_tab" ]; then
+        sleep 2
+        status_out=$($BB_CMD daemon status 2>&1) || true
+        tab_ids=$(echo "$status_out" | grep -E '^\s+[a-z0-9]{4}' | awk '{print $1}' | head -10) || true
+        for tid in $tab_ids; do
+            local url
+            url=$($BB_CMD eval "location.href" --tab "$tid" 2>/dev/null) || continue
+            if echo "$url" | grep -q "doubao"; then
+                new_tab="$tid"
+                break
+            fi
+        done
+    fi
+    echo "$new_tab"
+}
+
+# ── Check login ──
+check_login() {
+    local tab_id="$1"
+    $BB_CMD site doubao/check-login --tab "$tab_id" 2>&1 | grep -q '"logged_in": true'
+}
+
+# ── Image generation ──
+do_image() {
+    local MSG="$1"
+    ensure_headless
+    ensure_daemon || true
+    local tab_id
+    tab_id=$(get_doubao_tab)
+    if [ -z "$tab_id" ]; then echo "错误: 无法打开豆包页面"; exit 1; fi
+    if ! check_login "$tab_id"; then echo "⚠ 未登录。运行 doubao login 进行登录。"; exit 1; fi
+
+    local cur_url
+    cur_url=$($BB_CMD eval "location.href" --tab "$tab_id" 2>/dev/null) || true
+
+    # Step 1: Ensure we're on a server conversation (not greeting page)
+    if ! echo "$cur_url" | grep -qP '/chat/\d+'; then
+        # Greeting page — send minimal msg via textarea to create server conversation
+        $BB_CMD site doubao/send "." --tab "$tab_id" &>/dev/null
+        local waited=0
+        while [ $waited -lt 30 ]; do
+            sleep 1; waited=$((waited + 1))
+            cur_url=$($BB_CMD eval "location.href" --tab "$tab_id" 2>/dev/null) || true
+            if echo "$cur_url" | grep -qP '/chat/\d+$'; then break; fi
+        done
+        if ! echo "$cur_url" | grep -qP '/chat/\d+$'; then
+            echo "错误: 创建会话失败"; return 1
+        fi
+        sleep 3
+    fi
+
+    # Step 2: Switch to image mode
+    $BB_CMD eval "(function(){
+      const btn = Array.from(document.querySelectorAll('button')).find(b =>
+        b.innerText?.trim() === '图像生成' && b.getBoundingClientRect().width > 0
+      );
+      if (btn) btn.click();
+    })()" --tab "$tab_id" &>/dev/null
+    sleep 3
+
+    # Step 3: Find contenteditable and type prompt via CDP Input.insertText
+    local snap ce_ref
+    snap=$($BB_CMD snapshot --tab "$tab_id" 2>&1) || true
+    ce_ref=$(echo "$snap" | grep -i 'textbox' | head -1 | grep -oP 'ref=\K\d+') || true
+
+    if [ -n "$ce_ref" ]; then
+        $BB_CMD click "@${ce_ref}" --tab "$tab_id" &>/dev/null
+        sleep 0.3
+        $BB_CMD type "@${ce_ref}" "$MSG" --tab "$tab_id"
+    else
+        # Fallback: focus ce via eval then type without ref
+        $BB_CMD eval "(function(){
+          const ce = document.querySelector('[contenteditable=\"true\"]');
+          if (ce) ce.focus();
+        })()" --tab "$tab_id" &>/dev/null
+        sleep 0.3
+        $BB_CMD type "$MSG" --tab "$tab_id" 2>/dev/null || true
+    fi
+    sleep 1
+
+    # Step 4: Click send button via fiber onClick
+    local click_result
+    click_result=$($BB_CMD eval "(function(){
+      const btns = Array.from(document.querySelectorAll('button'));
+      const sendBtn = btns.find(b => {
+        const r = b.getBoundingClientRect();
+        return r.x > 1100 && r.y > 590 && r.width > 0 && r.width < 60;
+      });
+      if (!sendBtn) return 'no_btn';
+      const fk = Object.keys(sendBtn).find(k => k.startsWith('__reactFiber'));
+      if (!fk) return 'no_fiber';
+      let f = sendBtn[fk];
+      for (let i = 0; i < 10 && f; i++) {
+        const p = f.memoizedProps || {};
+        if (typeof p.onClick === 'function') {
+          p.onClick({currentTarget: sendBtn, target: sendBtn, preventDefault(){}, stopPropagation(){}});
+          return 'clicked';
+        }
+        f = f.return;
+      }
+      return 'no_onClick';
+    })()" --tab "$tab_id" 2>&1) || true
+
+    if ! echo "$click_result" | grep -q 'clicked'; then
+        echo "⚠ 发送按钮未找到 ($click_result)，尝试回车提交" >&2
+        $BB_CMD press Enter --tab "$tab_id" &>/dev/null || true
+    fi
+
+    echo "图像生成中..." >&2
+
+    # Step 5: Poll for image response
+    local max_wait=120 elapsed=0 prev_len=0
+    local before_count
+    before_count=$($BB_CMD eval "document.querySelectorAll('[class*=markdown-body]').length" --tab "$tab_id" 2>/dev/null) || before_count=0
+
+    while [ $elapsed -lt $max_wait ]; do
+        sleep 1; elapsed=$((elapsed + 1))
+        local img_check
+        img_check=$($BB_CMD eval "(function(){
+          const imgs = document.querySelectorAll('img[src*=\"generated\"], img[src*=\"image\"], [class*=image-card] img, [class*=image-result] img');
+          if (imgs.length > 0) return 'has_image';
+          const mds = document.querySelectorAll('[class*=markdown-body]');
+          if (mds.length > ${before_count}) return 'has_text';
+          return 'waiting';
+        })()" --tab "$tab_id" 2>&1) || true
+
+        case "$img_check" in
+            has_image)
+                echo "✓ 图像已生成"
+                return 0 ;;
+            has_text)
+                local poll_out
+                poll_out=$($BB_CMD site doubao/poll --before_count "$before_count" --prev_len "$prev_len" --tab "$tab_id" 2>&1) || continue
+                local cur_len
+                cur_len=$(echo "$poll_out" | jq -r '.len // 0' 2>/dev/null) || cur_len=0
+                prev_len=$cur_len
+                if echo "$poll_out" | grep -q '"status": "done"'; then
+                    local msg
+                    msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
+                    [ -n "$msg" ] && echo "$msg" || echo "✓ 生成完成"
+                    return 0
+                fi ;;
+        esac
+        [ $((elapsed % 6)) -eq 0 ] && printf "." >&2
+    done
+    echo ""
+    echo "⚠ 等待超时（${max_wait}s）。用 doubao last 获取回复。"
+    return 1
+}
+
+# ── Chat send and poll ──
+chat_send_and_poll() {
+    local args=("$@")
+    local max_polls=20
+
+    ensure_headless
+    ensure_daemon || true
+
+    local tab_id
+    tab_id=$(get_doubao_tab)
+    if [ -z "$tab_id" ]; then
+        echo "错误: 无法打开豆包页面"
+        exit 1
+    fi
+
+    if ! check_login "$tab_id"; then
+        echo "⚠ 未登录。运行 doubao login 进行登录。"
+        exit 1
+    fi
+
+    # Wait for page readiness: textarea must have React fiber
+    local fiber_retries=0
+    for i in $(seq 1 15); do
+        local fiber_ok
+        fiber_ok=$($BB_CMD eval "(function(){
+          const ta = document.querySelector('textarea');
+          if (!ta) return false;
+          const fk = Object.keys(ta).find(k => k.startsWith('__reactFiber'));
+          if (!fk) return false;
+          let f = ta[fk];
+          for (let i = 0; i < 40 && f; i++) {
+            if (typeof (f.memoizedProps||{}).onSubmit === 'function') return true;
+            f = f.return;
+          }
+          return false;
+        })()" --tab "$tab_id" 2>&1)
+        [ "$fiber_ok" = "true" ] && break
+        sleep 0.5
+        fiber_retries=$((fiber_retries + 1))
+        # After 5 failures, try reloading the page
+        if [ $fiber_retries -eq 5 ]; then
+            $BB_CMD eval "location.reload()" --tab "$tab_id" &>/dev/null
+            sleep 4
+        fi
+    done
+
+    # Phase 1: Send (fast)
+    local send_out
+    send_out=$($BB_CMD site doubao/send "${args[@]}" --tab "$tab_id" 2>&1)
+    if echo "$send_out" | grep -q '"error"'; then
+        echo "发送失败: $send_out"
+        return 1
+    fi
+
+    local before_count
+    before_count=$(echo "$send_out" | jq -r '.before_count // 0' 2>/dev/null) || before_count=0
+
+    # Phase 2: Poll — 1s intervals, detect completion when content length stabilizes
+    local max_wait=120
+    local elapsed=0
+    local prev_len=0
+    local stale_count=0
+    while [ $elapsed -lt $max_wait ]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        local poll_out
+        poll_out=$($BB_CMD site doubao/poll --before_count "$before_count" --prev_len "$prev_len" --tab "$tab_id" 2>&1) || continue
+        local cur_len
+        cur_len=$(echo "$poll_out" | jq -r '.len // 0' 2>/dev/null) || cur_len=0
+        prev_len=$cur_len
+
+        # Detect stale page: if still "waiting" after 15s, refresh and retry
+        if echo "$poll_out" | grep -q '"status": "waiting"'; then
+            stale_count=$((stale_count + 1))
+            if [ $stale_count -ge 30 ]; then
+                # Check for local_ URL (server conversation creation failed)
+                local cur_url
+                cur_url=$($BB_CMD eval "location.href" --tab "$tab_id" 2>/dev/null) || true
+                if echo "$cur_url" | grep -q 'local_'; then
+                    # Navigate to fresh page and resend
+                    $BB_CMD eval "location.href='https://www.doubao.com/chat/'" --tab "$tab_id" &>/dev/null
+                    sleep 4
+                    send_out=$($BB_CMD site doubao/send "${args[@]}" --tab "$tab_id" 2>&1)
+                    before_count=$(echo "$send_out" | jq -r '.before_count // 0' 2>/dev/null) || before_count=0
+                    prev_len=0; stale_count=0; elapsed=0
+                    continue
+                fi
+                # Page is stale — refresh and resend
+                $BB_CMD eval "location.href='https://www.doubao.com/chat/'" --tab "$tab_id" &>/dev/null
+                sleep 3
+                send_out=$($BB_CMD site doubao/send "${args[@]}" --tab "$tab_id" 2>&1)
+                before_count=$(echo "$send_out" | jq -r '.before_count // 0' 2>/dev/null) || before_count=0
+                prev_len=0
+                stale_count=0
+                elapsed=0
+            fi
+        fi
+        if echo "$poll_out" | grep -q '"status": "done"'; then
+            local msg mode refs
+            msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
+            mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
+            refs=$(echo "$poll_out" | jq -r '.references // empty' 2>/dev/null) || true
+
+            if [ "$mode" != "快速" ]; then
+                echo "[$mode 模式]" >&2
+            fi
+            if [ -n "$refs" ]; then
+                echo "[$refs]" >&2
+            fi
+
+            if [ -n "$msg" ]; then
+                echo "$msg"
+            else
+                echo "$poll_out"
+            fi
+            return 0
+        fi
+        # Show progress every 3 seconds
+        if [ $((elapsed % 6)) -eq 0 ]; then
+            printf "." >&2
+        fi
+    done
+    echo ""
+    echo "⚠ 等待超时（${max_wait}s）。用 doubao last 获取回复。"
+    return 1
+}
+
+# ── Login commands ──
+do_login_web() {
+    echo "正在打开浏览器..."
+    local chrome
+    chrome=$(find_chrome) || { echo "错误: 未找到 Chrome/Chromium"; return 1; }
+
+    # Stop daemon and headless Chrome first (they use the same user-data-dir)
+    $BB_CMD daemon stop &>/dev/null 2>&1 || true
+    sleep 1
+    # Kill existing Chrome instances on our port
+    local chrome_pids
+    chrome_pids=$(lsof -ti:$BB_PORT 2>/dev/null) || true
+    if [ -n "$chrome_pids" ]; then
+        echo "停止现有 Chrome 实例..."
+        echo "$chrome_pids" | xargs kill 2>/dev/null || true
+        sleep 2
+    fi
+
+    # Start visible Chrome with remote debugging
+    "$chrome" --remote-debugging-port="$BB_PORT" --user-data-dir="$BB_USER_DATA" \
+        "https://www.doubao.com/chat/" &>/dev/null &
+    local chrome_pid=$!
+    sleep 3
+
+    # Verify Chrome started
+    if ! kill -0 "$chrome_pid" 2>/dev/null; then
+        echo "错误: Chrome 启动失败。可能已有 Chrome 实例在运行。"
+        echo "尝试关闭所有 Chrome 窗口后重试。"
+        return 1
+    fi
+
+    echo ""
+    echo "浏览器已打开。请完成登录或人机验证。"
+    echo "完成后按回车继续..."
+    read -r
+
+    # Start bb-browser daemon to connect to the existing Chrome
+    ensure_daemon || true
+    sleep 2
+
+    # Verify login
+    local tab_id
+    tab_id=$(get_doubao_tab)
+    sleep 2
+    if [ -n "$tab_id" ] && check_login "$tab_id"; then
+        echo "✓ 登录成功！登录状态已保存，后续可直接使用 doubao 命令。"
+    else
+        echo "⚠ 未检测到登录。你可以稍后重试 doubao login --web"
+    fi
+
+    # Stop daemon and gracefully close Chrome (give it time to flush cookies)
+    $BB_CMD daemon stop &>/dev/null 2>&1 || true
+    sleep 1
+    # Graceful shutdown: SIGTERM first, wait for cookie flush
+    kill "$chrome_pid" 2>/dev/null || true
+    sleep 3
+    # Force kill if still running
+    kill -9 "$chrome_pid" 2>/dev/null || true
+}
+
+do_login_interactive() {
+    ensure_headless || { echo "错误: Chrome 启动失败"; return 1; }
+    ensure_daemon || { echo "警告: daemon 启动异常"; }
+
+    # Open doubao page in headless
+    local tab_id
+    tab_id=$(get_doubao_tab)
+    if [ -z "$tab_id" ]; then
+        echo "错误: 无法打开豆包页面"
+        return 1
+    fi
+    sleep 3
+
+    # Check if already logged in
+    if check_login "$tab_id"; then
+        echo "已登录，无需重复登录。"
+        return 0
+    fi
+
+    # Ask for phone number
+    echo -n "请输入手机号: "
+    read -r phone
+    if [ -z "$phone" ]; then
+        echo "手机号不能为空"
+        return 1
+    fi
+
+    # Send verification code
+    echo "正在发送验证码..."
+    local send_result
+    send_result=$($BB_CMD site doubao/login-send-code --phone "$phone" --tab "$tab_id" 2>&1)
+    if echo "$send_result" | grep -q '"error"'; then
+        echo "发送失败: $send_result"
+        echo "可以尝试: doubao login --web"
+        return 1
+    fi
+    echo "验证码已发送到 $phone"
+
+    # Ask for verification code
+    echo -n "请输入验证码: "
+    read -r code
+    if [ -z "$code" ]; then
+        echo "验证码不能为空"
+        return 1
+    fi
+
+    # Verify
+    local verify_result
+    verify_result=$($BB_CMD site doubao/login-verify --code "$code" --tab "$tab_id" 2>&1)
+    if echo "$verify_result" | grep -q '"status": "logged_in"'; then
+        local username
+        username=$(echo "$verify_result" | grep -oP '"username":\s*"\K[^"]*')
+        echo "✓ 登录成功！欢迎, $username"
+    elif echo "$verify_result" | grep -q '"error"'; then
+        echo "登录失败: $verify_result"
+        return 1
+    else
+        echo "$verify_result"
+    fi
+}
+
+do_login_cli() {
+    local phone="${1:-}"
+    local code="${2:-}"
+    local verify_result=""
+
+    if [ -z "$phone" ]; then
+        echo "用法: doubao login <手机号> [验证码]"
+        echo "      doubao login <手机号>  # 仅发送验证码"
+        echo "      doubao login <手机号> <验证码>  # 用已收到的验证码登录"
+        return 1
+    fi
+
+    ensure_headless || { echo "错误: Chrome 启动失败"; return 1; }
+    ensure_daemon || { echo "警告: daemon 启动异常"; }
+
+    local tab_id
+    tab_id=$(get_doubao_tab)
+    if [ -z "$tab_id" ]; then
+        echo "错误: 无法获取豆包页面"
+        return 1
+    fi
+    sleep 3
+
+    if check_login "$tab_id"; then
+        echo "已登录。"
+        return 0
+    fi
+
+    # If code provided, skip sending — just verify directly
+    if [ -n "$code" ]; then
+        $BB_CMD site doubao/login-verify --code "$code" --phone "$phone" --tab "$tab_id" &>/dev/null || true
+        # Wait and poll for login success (adapter is async)
+        for i in $(seq 1 6); do
+            sleep 2
+            if check_login "$tab_id"; then
+                echo "✓ 登录成功！"
+                return 0
+            fi
+        done
+        echo "✗ 验证码登录失败，可以尝试: doubao login $phone"
+        return 1
+    fi
+
+    # Send code (no code provided)
+    local send_result
+    send_result=$($BB_CMD site doubao/login-send-code --phone "$phone" --tab "$tab_id" 2>&1)
+    if echo "$send_result" | grep -q '"error"'; then
+        echo "发送失败: $send_result"
+        echo "可以尝试: doubao login --web"
+        return 1
+    fi
+    if echo "$send_result" | grep -q '"code_input_ready"'; then
+        echo "验证码输入界面已打开。"
+        echo "请输入验证码: doubao login $phone <验证码>"
+        return 0
+    fi
+    echo "验证码已发送到 $phone"
+    echo "请输入验证码: doubao login $phone <验证码>"
+    return 0
+}
+
+do_logout() {
+    ensure_headless || { echo "错误: Chrome 启动失败"; return 1; }
+    ensure_daemon || true
+    local tab_id
+    tab_id=$(get_doubao_tab)
+    if [ -z "$tab_id" ]; then
+        echo "错误: 无法获取豆包页面"
+        return 1
+    fi
+    # Use eval instead of site adapter (pointer events don't work in site context)
+    $BB_CMD eval "(() => {
+      const u = Array.from(document.querySelectorAll('button')).find(b => /^[A-Z]/.test(b.innerText?.trim()) && b.innerText.trim().length < 20 && !/^(AI|PPT|快速|思考|专家|更多|翻译|编程|解题)/.test(b.innerText.trim()) && b.getBoundingClientRect().width > 0);
+      if (!u) return JSON.stringify({error:'not_logged_in'});
+      u.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+      u.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+      u.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+      return 'clicked_user';
+    })()" --tab "$tab_id" 2>&1
+    sleep 2
+    $BB_CMD eval "(() => {
+      const d = Array.from(document.querySelectorAll('div')).find(e => e.innerText?.trim()==='退出登录' && e.childElementCount<=3 && e.getBoundingClientRect().width>0);
+      if (!d) return JSON.stringify({error:'logout_not_found'});
+      d.click();
+      return 'clicked_logout';
+    })()" --tab "$tab_id" 2>&1
+    sleep 1
+    $BB_CMD eval "(() => {
+      const b = Array.from(document.querySelectorAll('button')).find(b => b.innerText?.trim()==='退出登录' && b.getBoundingClientRect().height>0 && b.getBoundingClientRect().y>200);
+      if (b) b.click();
+      return 'confirmed';
+    })()" --tab "$tab_id" 2>&1
+    sleep 2
+    echo "已退出登录。"
+}
+
+# ── Main ──
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+    help|--help|-h)
+        echo "doubao — 豆包 AI 命令行工具"
+        echo ""
+        echo "用法: doubao <命令> [参数...]"
+        echo ""
+        echo "登录:"
+        echo "  doubao login                    交互式登录（手机号+验证码）"
+        echo "  doubao login <手机号>           发送验证码"
+        echo "  doubao login <手机号> <验证码>  发送验证码并登录"
+        echo "  doubao login --web              打开浏览器手动登录"
+        echo "  doubao logout                   退出登录"
+        echo ""
+        echo "聊天:"
+        echo "  doubao '你好'                   发消息（自动检测登录）"
+        echo "  doubao chat --mode coding '写快排'"
+        echo "  doubao chat --thinking expert '...'"
+        echo ""
+        echo "功能模式:"
+        echo "  doubao translate '你好'                      翻译（自动检测）"
+        echo "  doubao translate --to-english '你好'          中译英"
+        echo "  doubao translate --to-chinese 'Hello'         英译中"
+        echo "  doubao coding '写快排'     编程"
+        echo "  doubao math '解方程'       数学"
+        echo "  doubao image '猫'          图像"
+        echo "  doubao ppt 'AI发展'        PPT"
+        echo "  doubao research '...'      研究"
+        echo "  doubao writing '...'       写作"
+        echo "  doubao super '...'         超能"
+        echo "  (还有: video music podcast meeting data)"
+        echo ""
+        echo "会话管理:"
+        echo "  doubao list                 查看会话列表"
+        echo "  doubao load <ID>            加载历史会话"
+        echo "  doubao new                  新建会话"
+        echo "  doubao last                 最新回复"
+        echo "  doubao retry                重新生成最新回复"
+        echo "  doubao delete <ID>          删除会话"
+        echo ""
+        echo "系统:"
+        echo "  doubao account              账户信息"
+        echo "  doubao daemon               daemon 状态"
+        echo ""
+        echo "思考深度: quick think expert"
+        ;;
+
+    login)
+        if [ "${1:-}" = "--web" ]; then
+            do_login_web
+        elif [ "${1:-}" = "--interactive" ] || [ $# -eq 0 ]; then
+            do_login_interactive
+        else
+            do_login_cli "$@"
+        fi
+        ;;
+
+    logout)
+        do_logout
+        ;;
+
+    chat)
+        MODE="" THINKING="" MSG_ARGS=()
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --mode) MODE="$2"; shift 2 ;;
+                --thinking) THINKING="$2"; shift 2 ;;
+                *) MSG_ARGS+=("$1"); shift ;;
+            esac
+        done
+        MSG="${MSG_ARGS[*]}"
+        [ -z "$MSG" ] && { echo "用法: doubao chat <消息>"; exit 1; }
+        ARGS=("$MSG" "${MODE:-}" "${THINKING:-}")
+        chat_send_and_poll "${ARGS[@]}"
+        ;;
+
+    image)
+        MSG="${*:-}"
+        [ -z "$MSG" ] && { echo "用法: doubao image <图片描述>"; exit 1; }
+        do_image "$MSG"
+        ;;
+
+    translate|writing|ppt|coding|research|video|music|podcast|meeting|math|data|super)
+        TRANSLATE_TARGET=""
+        MSG_ARGS=()
+        for arg in "$@"; do
+            case "$arg" in
+                --to-english) TRANSLATE_TARGET="english" ;;
+                --to-chinese) TRANSLATE_TARGET="chinese" ;;
+                *) MSG_ARGS+=("$arg") ;;
+            esac
+        done
+        MSG="${MSG_ARGS[*]}"
+        [ -z "$MSG" ] && { echo "用法: doubao $cmd [--to-english|--to-chinese] <内容>"; exit 1; }
+        declare -A MODE_MAP=(
+            [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
+            [image]=image [research]=research [video]=video [music]=music
+            [podcast]=podcast [meeting]=meeting [math]=math [data]=data [super]=super
+        )
+        # Pass translate_target as extra arg for the adapter
+        if [ "$cmd" = "translate" ] && [ -n "$TRANSLATE_TARGET" ]; then
+            chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
+        else
+            chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+        fi
+        ;;
+
+    list|conversations)
+        ensure_headless; ensure_daemon || true
+        $BB_CMD site doubao/conversations
+        ;;
+    last|last-response)
+        ensure_headless; ensure_daemon || true
+        tab_id=$(get_doubao_tab)
+        $BB_CMD site doubao/last-response --tab "$tab_id"
+        ;;
+    retry|regenerate)
+        ensure_headless; ensure_daemon || true
+        tab_id=$(get_doubao_tab)
+        # Hover over last response to trigger action bar, then click regenerate
+        $BB_CMD eval "(function(){
+          const mds = document.querySelectorAll('[class*=markdown-body]');
+          const last = mds[mds.length-1];
+          if (!last) return JSON.stringify({error:'no_response'});
+          let c = last;
+          for (let i = 0; i < 3; i++) c = c.parentElement;
+          const r = c.getBoundingClientRect();
+          c.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,cancelable:true,pointerId:1,pointerType:'mouse',clientX:r.x+r.width/2,clientY:r.y+r.height/2}));
+          c.dispatchEvent(new MouseEvent('mousemove',{bubbles:true,cancelable:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}));
+          return 'hovered';
+        })()" --tab "$tab_id" &>/dev/null
+        sleep 0.5
+        $BB_CMD eval "(function(){
+          const ab = document.querySelector('[class*=message-action-button-main]');
+          if (!ab) return JSON.stringify({error:'no_action_bar'});
+          const btns = ab.querySelectorAll('button');
+          if (btns.length < 2) return JSON.stringify({error:'no_regenerate_btn', count:btns.length});
+          btns[1].click();
+          return 'clicked_regenerate';
+        })()" --tab "$tab_id" 2>&1
+        # Now poll for the new response
+        # Regenerate replaces the last response, so count stays the same.
+        # Use before_mds - 1 so the poll sees the new content.
+        before_mds=$($BB_CMD eval "document.querySelectorAll('[class*=markdown-body]').length" --tab "$tab_id" 2>/dev/null)
+        before_mds=$((before_mds > 0 ? before_mds - 1 : 0))
+        prev_len=0
+        elapsed=0
+        while [ $elapsed -lt 120 ]; do
+            sleep 1
+            elapsed=$((elapsed + 1))
+            poll_out=$($BB_CMD site doubao/poll --before_count "$before_mds" --prev_len "$prev_len" --tab "$tab_id" 2>&1) || continue
+            cur_len=$(echo "$poll_out" | jq -r '.len // 0' 2>/dev/null) || cur_len=0
+            prev_len=$cur_len
+            if echo "$poll_out" | grep -q '"status": "done"'; then
+                msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
+                mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
+                refs=$(echo "$poll_out" | jq -r '.references // empty' 2>/dev/null) || true
+                if [ "$mode" != "快速" ]; then echo "[$mode 模式]" >&2; fi
+                if [ -n "$refs" ]; then echo "[$refs]" >&2; fi
+                if [ -n "$msg" ]; then echo "$msg"; else echo "$poll_out"; fi
+                break
+            fi
+            [ $((elapsed % 6)) -eq 0 ] && printf "." >&2
+        done
+        if [ $elapsed -ge 120 ]; then
+            echo ""
+            echo "⚠ 等待超时。"
+        fi
+        ;;
+    account)
+        ensure_headless; ensure_daemon || true
+        tab_id=$(get_doubao_tab)
+        $BB_CMD site doubao/account --tab "$tab_id"
+        ;;
+
+    new)
+        ensure_headless; ensure_daemon || true
+        tab_id=$(get_doubao_tab)
+        # Click the UI "新对话" button (creates server-side conversation, avoids local_ URLs)
+        $BB_CMD eval "(function(){
+          const btn = Array.from(document.querySelectorAll('a,button')).find(b => {
+            const t = b.innerText?.trim();
+            return t === '新对话' && b.getBoundingClientRect().width > 0 && b.getBoundingClientRect().y < 200;
+          });
+          if (btn) { btn.click(); return 'clicked'; }
+          // Fallback: direct navigation (may create local_ URL)
+          location.href = 'https://www.doubao.com/chat/';
+          return 'navigated';
+        })()" --tab "$tab_id" &>/dev/null || true
+        sleep 4
+        echo "✓ 新会话已创建"
+        ;;
+
+    load)
+        ensure_headless; ensure_daemon || true
+        tab_id=$(get_doubao_tab)
+        CONV_ID="${1:-}"
+        if [ -n "$CONV_ID" ]; then
+            $BB_CMD open "https://www.doubao.com/chat/${CONV_ID}" &>/dev/null
+            sleep 3
+        fi
+        $BB_CMD site doubao/load --tab "$tab_id"
+        ;;
+
+    delete)
+        [ -z "${1:-}" ] && { echo "用法: doubao delete <会话ID>"; exit 1; }
+        ensure_headless; ensure_daemon || true
+        $BB_CMD site doubao/delete "$1"
+        ;;
+
+    daemon) $BB_CMD daemon status ;;
+    stop) $BB_CMD daemon stop 2>/dev/null; echo "已停止" ;;
+    open)
+        ensure_visible
+        ensure_daemon || true
+        $BB_CMD open https://www.doubao.com/chat/
+        echo ""
+        echo "关闭浏览器窗口后，doubao CLI 会在后台继续使用 headless 模式。"
+        ;;
+
+    *)
+        # Re-collect all args (including $cmd) and parse options uniformly
+        THINKING="" MODE="" MSG_ARGS=()
+        set -- "$cmd" "$@"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --thinking) [ $# -ge 2 ] && { THINKING="$2"; shift 2; } || shift ;;
+                --mode) [ $# -ge 2 ] && { MODE="$2"; shift 2; } || shift ;;
+                *) MSG_ARGS+=("$1"); shift ;;
+            esac
+        done
+        MSG="${MSG_ARGS[*]}"
+        [ -z "$MSG" ] && { echo "用法: doubao [选项] <消息>"; exit 1; }
+        ARGS=("$MSG" "${MODE:-}" "${THINKING:-}")
+        chat_send_and_poll "${ARGS[@]}"
+        ;;
+esac
