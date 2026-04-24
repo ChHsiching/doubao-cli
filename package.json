@@ -1,0 +1,20 @@
+{
+  "name": "doubao-cli",
+  "version": "1.0.0",
+  "description": "豆包 AI 命令行工具 — 通过 bb-browser CLI 化豆包 Web 端所有功能",
+  "bin": {
+    "doubao": "./doubao"
+  },
+  "scripts": {
+    "postinstall": "bash install.sh",
+    "test": "./doubao account"
+  },
+  "dependencies": {
+    "bb-browser": ">=0.11.0"
+  },
+  "keywords": ["doubao", "cli", "bb-browser", "ai", "chatbot"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

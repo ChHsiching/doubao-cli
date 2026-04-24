@@ -1,0 +1,6 @@
+node_modules/
+.remember/
+error.log
+verification_code.txt
+*.log
+*.pid
