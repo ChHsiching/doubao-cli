@@ -13,7 +13,7 @@
     "bb-browser": ">=0.11.0"
   },
   "keywords": ["doubao", "cli", "bb-browser", "ai", "chatbot"],
-  "license": "MIT",
+  "license": "CC-BY-NC-4.0",
   "engines": {
     "node": ">=18"
   }
