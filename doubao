@@ -453,10 +453,13 @@ do_login_web() {
     echo "完成后按回车继续..."
     read -r
 
-    # Gracefully close Chrome — give it time to flush cookies to user-data-dir
+    # Gracefully close Chrome — wait for it to flush cookies to disk
     kill "$chrome_pid" 2>/dev/null || true
-    sleep 3
-    # Force kill if still running
+    for i in $(seq 1 20); do
+        kill -0 "$chrome_pid" 2>/dev/null || break
+        sleep 0.5
+    done
+    # Force kill only if still running after 10s graceful shutdown
     kill -9 "$chrome_pid" 2>/dev/null || true
     sleep 1
     # Clean up lock files so next headless Chrome can start
