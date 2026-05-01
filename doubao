@@ -872,13 +872,6 @@ case "$cmd" in
 
     daemon) $BB_CMD daemon status ;;
     stop) $BB_CMD daemon stop 2>/dev/null; echo "已停止" ;;
-    open)
-        ensure_visible
-        ensure_daemon || true
-        $BB_CMD open https://www.doubao.com/chat/
-        echo ""
-        echo "关闭浏览器窗口后，doubao CLI 会在后台继续使用 headless 模式。"
-        ;;
 
     *)
         # Re-collect all args (including $cmd) and parse options uniformly
