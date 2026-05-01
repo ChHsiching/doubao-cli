@@ -797,6 +797,12 @@ case "$cmd" in
     account)
         ensure_headless; ensure_daemon || true
         tab_id=$(get_doubao_tab)
+        # Wait for doubao.com page to finish loading before fetching account info
+        for i in $(seq 1 15); do
+            page_host=$($BB_CMD eval "location.hostname" --tab "$tab_id" 2>/dev/null) || true
+            [ "$page_host" = "www.doubao.com" ] && break
+            sleep 0.5
+        done
         $BB_CMD site doubao/account --tab "$tab_id"
         ;;
 
