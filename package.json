@@ -1,5 +1,5 @@
 {
-  "name": "doubao-cli",
+  "name": "@chhsiching/doubao-cli",
   "version": "1.0.0",
   "description": "豆包 AI 命令行工具 — 通过 bb-browser CLI 化豆包 Web 端所有功能",
   "bin": {
@@ -7,8 +7,15 @@
   },
   "scripts": {
     "postinstall": "bash install.sh",
-    "test": "./doubao account"
+    "test": "./doubao account",
+    "prepublishOnly": "bash -n doubao && bash -n install.sh"
   },
+  "files": [
+    "doubao",
+    "install.sh",
+    "adapters/",
+    "README.md"
+  ],
   "dependencies": {
     "bb-browser": ">=0.11.0"
   },
@@ -16,5 +23,17 @@
   "license": "CC-BY-NC-4.0",
   "engines": {
     "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChHsiching/doubao-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ChHsiching/doubao-cli/issues"
+  },
+  "homepage": "https://github.com/ChHsiching/doubao-cli#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }
