@@ -435,8 +435,9 @@ do_login_web() {
     # Clean up stale Chrome lock files from previous unclean shutdowns
     rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
 
-    # Start visible Chrome — no --remote-debugging-port needed (no daemon involved)
+    # Start visible Chrome WITH CDP port so the session stays alive for later commands
     "$chrome" --user-data-dir="$BB_USER_DATA" \
+        --remote-debugging-port="$BB_PORT" \
         "https://www.doubao.com/chat/" &>/dev/null &
     local chrome_pid=$!
     sleep 3
@@ -453,19 +454,31 @@ do_login_web() {
     echo "完成后按回车继续..."
     read -r
 
-    # Gracefully close Chrome — wait for it to flush cookies to disk
-    kill "$chrome_pid" 2>/dev/null || true
-    for i in $(seq 1 20); do
-        kill -0 "$chrome_pid" 2>/dev/null || break
-        sleep 0.5
+    # Verify login via CDP — Chrome is still running with the session in memory
+    echo "正在验证登录状态..."
+    ensure_daemon || true
+    local tab_id=""
+    for i in $(seq 1 10); do
+        tab_id=$(get_doubao_tab)
+        [ -n "$tab_id" ] && break
+        sleep 1
     done
-    # Force kill only if still running after 10s graceful shutdown
-    kill -9 "$chrome_pid" 2>/dev/null || true
-    sleep 1
-    # Clean up lock files so next headless Chrome can start
-    rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
-
-    echo "✓ 登录状态已保存。运行 doubao account 验证。"
+    if [ -n "$tab_id" ]; then
+        for i in $(seq 1 10); do
+            local page_host
+            page_host=$($BB_CMD eval "location.hostname" --tab "$tab_id" 2>/dev/null) || true
+            [ "$page_host" = "www.doubao.com" ] && break
+            sleep 0.5
+        done
+        sleep 2
+    fi
+    if [ -n "$tab_id" ] && check_login "$tab_id"; then
+        echo "✓ 登录成功！运行 doubao account 查看账户信息。"
+    else
+        echo "⚠ 未能确认登录状态。请确认已在浏览器中完成登录。"
+        echo "  运行 doubao account 验证。"
+    fi
+    echo "  浏览器可以安全关闭。"
 }
 
 do_login_interactive() {
