@@ -11,14 +11,15 @@ BB_PORT=19825
 CHROME_EXE=""
 
 # ── Find bb-browser ──
-for candidate in bb-browser "$HOME/.local/bin/bb-browser" "$(dirname "$0")/node_modules/.bin/bb-browser"; do
+for candidate in "$(dirname "$0")/node_modules/.bin/bb-browser" bb-browser "$HOME/.local/bin/bb-browser"; do
     if command -v "$candidate" &>/dev/null || [ -f "$candidate" ]; then
         BB_CMD="$candidate"
         break
     fi
 done
 if [ -z "$BB_CMD" ]; then
-    echo "错误: bb-browser 未安装。运行: npm install -g bb-browser --prefix ~/.local"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    echo "错误: bb-browser 未安装。在项目目录运行: cd $SCRIPT_DIR && npm install"
     exit 1
 fi
 
