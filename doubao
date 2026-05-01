@@ -69,15 +69,17 @@ ensure_headless() {
     fi
 
     mkdir -p "$BB_USER_DATA"
+    # Clean up stale Chrome lock (left by unclean shutdown, e.g. login --web)
+    rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
 
     # Use xvfb-run to run Chrome invisibly (headless mode breaks WebSocket)
-    # Launch directly to doubao.com — no about:blank
-    local launch_cmd="$CHROME_EXE"
+    # Must use array to preserve --server-args as single argument
+    local -a launch_args=("$CHROME_EXE")
     if command -v xvfb-run &>/dev/null; then
-        launch_cmd="xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' $CHROME_EXE"
+        launch_args=(xvfb-run --auto-servernum --server-args '-screen 0 1920x1080x24' "$CHROME_EXE")
     fi
 
-    $launch_cmd \
+    "${launch_args[@]}" \
         --no-sandbox \
         --remote-debugging-port="$BB_PORT" \
         --user-data-dir="$BB_USER_DATA" \
@@ -430,8 +432,12 @@ do_login_web() {
         sleep 2
     fi
 
-    # Start visible Chrome with remote debugging
-    "$chrome" --remote-debugging-port="$BB_PORT" --user-data-dir="$BB_USER_DATA" \
+    # Clean up stale Chrome lock files from previous unclean shutdowns
+    rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
+
+    # Start visible Chrome WITH CDP port so the session stays alive for later commands
+    "$chrome" --user-data-dir="$BB_USER_DATA" \
+        --remote-debugging-port="$BB_PORT" \
         "https://www.doubao.com/chat/" &>/dev/null &
     local chrome_pid=$!
     sleep 3
@@ -448,28 +454,31 @@ do_login_web() {
     echo "完成后按回车继续..."
     read -r
 
-    # Start bb-browser daemon to connect to the existing Chrome
+    # Verify login via CDP — Chrome is still running with the session in memory
+    echo "正在验证登录状态..."
     ensure_daemon || true
-    sleep 2
-
-    # Verify login
-    local tab_id
-    tab_id=$(get_doubao_tab)
-    sleep 2
-    if [ -n "$tab_id" ] && check_login "$tab_id"; then
-        echo "✓ 登录成功！登录状态已保存，后续可直接使用 doubao 命令。"
-    else
-        echo "⚠ 未检测到登录。你可以稍后重试 doubao login --web"
+    local tab_id=""
+    for i in $(seq 1 10); do
+        tab_id=$(get_doubao_tab)
+        [ -n "$tab_id" ] && break
+        sleep 1
+    done
+    if [ -n "$tab_id" ]; then
+        for i in $(seq 1 10); do
+            local page_host
+            page_host=$($BB_CMD eval "location.hostname" --tab "$tab_id" 2>/dev/null) || true
+            [ "$page_host" = "www.doubao.com" ] && break
+            sleep 0.5
+        done
+        sleep 2
     fi
-
-    # Stop daemon and gracefully close Chrome (give it time to flush cookies)
-    $BB_CMD daemon stop &>/dev/null 2>&1 || true
-    sleep 1
-    # Graceful shutdown: SIGTERM first, wait for cookie flush
-    kill "$chrome_pid" 2>/dev/null || true
-    sleep 3
-    # Force kill if still running
-    kill -9 "$chrome_pid" 2>/dev/null || true
+    if [ -n "$tab_id" ] && check_login "$tab_id"; then
+        echo "✓ 登录成功！运行 doubao account 查看账户信息。"
+    else
+        echo "⚠ 未能确认登录状态。请确认已在浏览器中完成登录。"
+        echo "  运行 doubao account 验证。"
+    fi
+    echo "  浏览器可以安全关闭。"
 }
 
 do_login_interactive() {
@@ -804,7 +813,26 @@ case "$cmd" in
     account)
         ensure_headless; ensure_daemon || true
         tab_id=$(get_doubao_tab)
-        $BB_CMD site doubao/account --tab "$tab_id"
+        # Wait for doubao.com page to finish loading before fetching account info
+        for i in $(seq 1 15); do
+            page_host=$($BB_CMD eval "location.hostname" --tab "$tab_id" 2>/dev/null) || true
+            [ "$page_host" = "www.doubao.com" ] && break
+            sleep 0.5
+        done
+        acct_out=$($BB_CMD site doubao/account --tab "$tab_id" 2>&1)
+        if echo "$acct_out" | grep -q '"logged_in": true'; then
+            username=$(echo "$acct_out" | jq -r '.username // ""' 2>/dev/null) || true
+            avatar=$(echo "$acct_out" | jq -r '.avatar // ""' 2>/dev/null) || true
+            echo "✓ 已登录"
+            [ -n "$username" ] && echo "  用户: $username"
+            [ -n "$avatar" ] && echo "  头像: $avatar"
+        elif echo "$acct_out" | grep -q '"error"'; then
+            err=$(echo "$acct_out" | jq -r '.error // "unknown"' 2>/dev/null) || err="$acct_out"
+            echo "⚠ 账户查询失败: $err"
+            echo "  运行 doubao login --web 进行登录"
+        else
+            echo "⚠ 未登录。运行 doubao login 进行登录。"
+        fi
         ;;
 
     new)

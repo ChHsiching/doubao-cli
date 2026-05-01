@@ -25,10 +25,21 @@ This automatically installs `bb-browser` and copies adapters into place.
 ### Login
 
 ```bash
+# Phone + verification code (recommended)
+./doubao login 13800138000           # Send code to phone
+./doubao login 13800138000 123456    # Login with code
+
+# Or interactive mode — prompts for phone and code
+./doubao login
+```
+
+If phone login is unavailable, use browser login as a fallback:
+
+```bash
 ./doubao login --web
 ```
 
-A browser window opens — complete login, then press Enter in the terminal.
+A Chrome window opens for manual login. After completing login, press Enter in the terminal.
 
 ### Usage
 
