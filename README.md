@@ -41,6 +41,12 @@ If phone login is unavailable, use browser login as a fallback:
 
 A Chrome window opens for manual login. After completing login, press Enter in the terminal.
 
+After login, verify with:
+
+```bash
+./doubao account
+```
+
 ### Usage
 
 ```bash
