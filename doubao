@@ -803,7 +803,20 @@ case "$cmd" in
             [ "$page_host" = "www.doubao.com" ] && break
             sleep 0.5
         done
-        $BB_CMD site doubao/account --tab "$tab_id"
+        acct_out=$($BB_CMD site doubao/account --tab "$tab_id" 2>&1)
+        if echo "$acct_out" | grep -q '"logged_in": true'; then
+            username=$(echo "$acct_out" | jq -r '.username // ""' 2>/dev/null) || true
+            avatar=$(echo "$acct_out" | jq -r '.avatar // ""' 2>/dev/null) || true
+            echo "✓ 已登录"
+            [ -n "$username" ] && echo "  用户: $username"
+            [ -n "$avatar" ] && echo "  头像: $avatar"
+        elif echo "$acct_out" | grep -q '"error"'; then
+            err=$(echo "$acct_out" | jq -r '.error // "unknown"' 2>/dev/null) || err="$acct_out"
+            echo "⚠ 账户查询失败: $err"
+            echo "  运行 doubao login --web 进行登录"
+        else
+            echo "⚠ 未登录。运行 doubao login 进行登录。"
+        fi
         ;;
 
     new)
