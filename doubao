@@ -73,13 +73,13 @@ ensure_headless() {
     rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
 
     # Use xvfb-run to run Chrome invisibly (headless mode breaks WebSocket)
-    # Launch directly to doubao.com — no about:blank
-    local launch_cmd="$CHROME_EXE"
+    # Must use array to preserve --server-args as single argument
+    local -a launch_args=("$CHROME_EXE")
     if command -v xvfb-run &>/dev/null; then
-        launch_cmd="xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' $CHROME_EXE"
+        launch_args=(xvfb-run --auto-servernum --server-args '-screen 0 1920x1080x24' "$CHROME_EXE")
     fi
 
-    $launch_cmd \
+    "${launch_args[@]}" \
         --no-sandbox \
         --remote-debugging-port="$BB_PORT" \
         --user-data-dir="$BB_USER_DATA" \
