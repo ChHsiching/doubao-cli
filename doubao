@@ -69,6 +69,8 @@ ensure_headless() {
     fi
 
     mkdir -p "$BB_USER_DATA"
+    # Clean up stale Chrome lock (left by unclean shutdown, e.g. login --web)
+    rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
 
     # Use xvfb-run to run Chrome invisibly (headless mode breaks WebSocket)
     # Launch directly to doubao.com — no about:blank
@@ -430,8 +432,11 @@ do_login_web() {
         sleep 2
     fi
 
-    # Start visible Chrome with remote debugging
-    "$chrome" --remote-debugging-port="$BB_PORT" --user-data-dir="$BB_USER_DATA" \
+    # Clean up stale Chrome lock files from previous unclean shutdowns
+    rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
+
+    # Start visible Chrome — no --remote-debugging-port needed (no daemon involved)
+    "$chrome" --user-data-dir="$BB_USER_DATA" \
         "https://www.doubao.com/chat/" &>/dev/null &
     local chrome_pid=$!
     sleep 3
@@ -448,28 +453,16 @@ do_login_web() {
     echo "完成后按回车继续..."
     read -r
 
-    # Start bb-browser daemon to connect to the existing Chrome
-    ensure_daemon || true
-    sleep 2
-
-    # Verify login
-    local tab_id
-    tab_id=$(get_doubao_tab)
-    sleep 2
-    if [ -n "$tab_id" ] && check_login "$tab_id"; then
-        echo "✓ 登录成功！登录状态已保存，后续可直接使用 doubao 命令。"
-    else
-        echo "⚠ 未检测到登录。你可以稍后重试 doubao login --web"
-    fi
-
-    # Stop daemon and gracefully close Chrome (give it time to flush cookies)
-    $BB_CMD daemon stop &>/dev/null 2>&1 || true
-    sleep 1
-    # Graceful shutdown: SIGTERM first, wait for cookie flush
+    # Gracefully close Chrome — give it time to flush cookies to user-data-dir
     kill "$chrome_pid" 2>/dev/null || true
     sleep 3
     # Force kill if still running
     kill -9 "$chrome_pid" 2>/dev/null || true
+    sleep 1
+    # Clean up lock files so next headless Chrome can start
+    rm -f "$BB_USER_DATA/SingletonLock" "$BB_USER_DATA/SingletonSocket" "$BB_USER_DATA/SingletonCookie" 2>/dev/null || true
+
+    echo "✓ 登录状态已保存。运行 doubao account 验证。"
 }
 
 do_login_interactive() {
