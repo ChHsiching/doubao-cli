@@ -418,14 +418,20 @@ chat_send_and_poll() {
                 echo "$poll_out"
             fi
 
-            # PPT: show conversation link for viewing/downloading
-            if [ -n "$conv_id" ] && echo "$msg" | grep -qi '制作完成\|已经为您'; then
+            # Show conversation link for PPT or when content indicates completion
+            if [ -n "$conv_id" ] && [ "$CHAT_POLL_MODE" = "ppt" ]; then
                 echo "" >&2
-                echo "📋 对话链接: https://www.doubao.com/chat/$conv_id" >&2
+                echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
                 if [ -n "$ppt_url" ]; then
-                    echo "📋 PPT 预览: $ppt_url" >&2
+                    echo "PPT 预览: $ppt_url" >&2
                 fi
-                echo "  请在浏览器中打开对话链接查看/下载 PPT" >&2
+                echo "  PPT 文件可能仍在后台生成，请在浏览器中打开对话链接查看/下载" >&2
+            elif [ -n "$conv_id" ] && echo "$msg" | grep -qi '制作完成\|已经为您'; then
+                echo "" >&2
+                echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
+                if [ -n "$ppt_url" ]; then
+                    echo "PPT 预览: $ppt_url" >&2
+                fi
             fi
             return 0
         else
@@ -781,7 +787,7 @@ case "$cmd" in
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
         elif [ "$cmd" = "ppt" ]; then
             # PPT generation takes 10-30 minutes, use extended timeout
-            CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+            CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=ppt chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         else
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         fi
