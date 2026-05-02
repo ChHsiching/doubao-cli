@@ -6,13 +6,34 @@ Built on top of [bb-browser](https://github.com/epiral/bb-browser) — a CLI + M
 
 ## Quick Start
 
-### Prerequisites
+### Option 1: Download Binary (Recommended)
 
-- [Node.js](https://nodejs.org/) >= 18
-- [Google Chrome](https://www.google.com/chrome/) or Chromium
-- A Doubao account
+No Node.js required. Download the binary for your platform from [GitHub Releases](https://github.com/ChHsiching/doubao-cli/releases/latest):
 
-### Install
+```bash
+# Linux (x86_64)
+curl -fsSL https://github.com/ChHsiching/doubao-cli/releases/latest/download/doubao-cli-linux-amd64 \
+  -o doubao-cli && chmod +x doubao-cli
+
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/ChHsiching/doubao-cli/releases/latest/download/doubao-cli-darwin-arm64 \
+  -o doubao-cli && chmod +x doubao-cli
+
+# macOS (Intel)
+curl -fsSL https://github.com/ChHsiching/doubao-cli/releases/latest/download/doubao-cli-darwin-amd64 \
+  -o doubao-cli && chmod +x doubao-cli
+
+# Windows (x86_64)
+# Download doubao-cli-windows-amd64.exe from the Releases page
+```
+
+### Option 2: npm
+
+```bash
+npm install -g @chhsiching/doubao-cli
+```
+
+### Option 3: From Source
 
 ```bash
 git clone git@github.com:ChHsiching/doubao-cli.git
@@ -20,23 +41,26 @@ cd doubao-cli
 npm install
 ```
 
-This automatically installs `bb-browser` and copies adapters into place.
+### Prerequisites
+
+- [Google Chrome](https://www.google.com/chrome/) or Chromium
+- A Doubao account
 
 ### Login
 
 ```bash
 # Phone + verification code (recommended)
-./doubao-cli login 13800138000           # Send code to phone
-./doubao-cli login 13800138000 123456    # Login with code
+doubao-cli login 13800138000           # Send code to phone
+doubao-cli login 13800138000 123456    # Login with code
 
 # Or interactive mode — prompts for phone and code
-./doubao-cli login
+doubao-cli login
 ```
 
 If phone login is unavailable, use browser login as a fallback:
 
 ```bash
-./doubao-cli login --web
+doubao-cli login --web
 ```
 
 A Chrome window opens for manual login. After completing login, press Enter in the terminal.
@@ -44,18 +68,18 @@ A Chrome window opens for manual login. After completing login, press Enter in t
 After login, verify with:
 
 ```bash
-./doubao-cli account
+doubao-cli account
 ```
 
 ### Usage
 
 ```bash
-./doubao-cli "hello"                          # Quick chat
-./doubao-cli image "a cat wearing sunglasses"  # Generate image
-./doubao-cli translate --to-english "你好"     # Translate
-./doubao-cli coding "write quicksort"          # Coding mode
-./doubao-cli math "solve x^2 + 3x - 4 = 0"   # Math mode
-./doubao-cli help                              # All commands
+doubao-cli "hello"                          # Quick chat
+doubao-cli image "a cat wearing sunglasses"  # Generate image
+doubao-cli translate --to-english "你好"     # Translate
+doubao-cli coding "write quicksort"          # Coding mode
+doubao-cli math "solve x^2 + 3x - 4 = 0"   # Math mode
+doubao-cli help                              # All commands
 ```
 
 ## Available Commands
@@ -65,6 +89,8 @@ After login, verify with:
 | `doubao-cli "message"` | Send a message |
 | `doubao-cli image <desc>` | AI image generation |
 | `doubao-cli translate <text>` | Translation |
+| `doubao-cli translate --to-english <text>` | Translate to English |
+| `doubao-cli translate --to-chinese <text>` | Translate to Chinese |
 | `doubao-cli coding <prompt>` | Code assistant |
 | `doubao-cli math <problem>` | Math solver |
 | `doubao-cli writing <prompt>` | Writing assistant |
