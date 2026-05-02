@@ -355,6 +355,8 @@ chat_send_and_poll() {
     local elapsed=0
     local prev_len=0
     local stale_count=0
+    local done_count=0
+    local stable_needed=${CHAT_POLL_STABLE_COUNT:-1}
     while [ $elapsed -lt $max_wait ]; do
         sleep 1
         elapsed=$((elapsed + 1))
@@ -391,6 +393,11 @@ chat_send_and_poll() {
             fi
         fi
         if echo "$poll_out" | grep -q '"status": "done"'; then
+            done_count=$((done_count + 1))
+            if [ $done_count -lt $stable_needed ]; then
+                # Not stable enough yet — keep polling
+                continue
+            fi
             local msg mode refs ppt_url conv_id
             msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
             mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
@@ -421,6 +428,9 @@ chat_send_and_poll() {
                 echo "  请在浏览器中打开对话链接查看/下载 PPT" >&2
             fi
             return 0
+        else
+            # Content still changing — reset done counter
+            done_count=0
         fi
         # Show progress every 3 seconds
         if [ $((elapsed % 6)) -eq 0 ]; then
@@ -771,7 +781,7 @@ case "$cmd" in
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
         elif [ "$cmd" = "ppt" ]; then
             # PPT generation takes 10-30 minutes, use extended timeout
-            CHAT_POLL_MAX_WAIT=1800 chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+            CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         else
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         fi
