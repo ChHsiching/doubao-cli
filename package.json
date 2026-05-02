@@ -1,7 +1,7 @@
 {
   "name": "@chhsiching/doubao-cli",
-  "version": "1.1.0",
-  "description": "豆包 AI 命令行工具 — 通过 bb-browser CLI 化豆包 Web 端所有功能",
+  "version": "1.2.0",
+  "description": "\u8c46\u5305 AI \u547d\u4ee4\u884c\u5de5\u5177 \u2014 \u901a\u8fc7 bb-browser CLI \u5316\u8c46\u5305 Web \u7aef\u6240\u6709\u529f\u80fd",
   "bin": {
     "doubao-cli": "doubao-cli"
   },
