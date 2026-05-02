@@ -83,65 +83,41 @@ async function(args) {
   }
 
   // ── Mode switching ──
-  // Skip UI switch for modes with Slate.js ce that can't be submitted from greeting page
+  // Skip UI switch for modes handled as normal textarea chat
   const skipUISwitch = new Set(['编程', '图像生成']);
   const modeLabel = modes[args.mode];
   if (modeLabel && !skipUISwitch.has(modeLabel)) {
     let modeSwitched = false;
 
-    // Strategy 1: Click mode button directly
-    const candidates = Array.from(document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]'));
-    for (const b of candidates) {
-      if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
-        b.click();
-        modeSwitched = true;
-        break;
-      }
-    }
-
-    // Strategy 2: Radix Popover trigger
-    if (!modeSwitched) {
-      const modeTriggers = Array.from(document.querySelectorAll('[data-value]'));
-      for (const trigger of modeTriggers) {
-        const txt = trigger.innerText?.trim() || '';
-        if (!txt || trigger.getBoundingClientRect().width === 0) continue;
-        if (/^(快速|思考|专家)/.test(txt)) continue;
-        trigger.click();
-        await new Promise(res => setTimeout(res, 300));
-        const popups = document.querySelectorAll('[data-radix-popper-content-wrapper] [data-value], [role=listbox] div, [role=menu] div');
-        for (const item of popups) {
-          if (item.innerText?.trim() === modeLabel) {
-            const fk = Object.keys(item).find(k => k.startsWith('__reactFiber'));
-            if (fk) {
-              const onClick = item[fk]?.memoizedProps?.onClick;
-              if (typeof onClick === 'function') {
-                onClick({currentTarget: item, target: item, preventDefault: ()=>{}, stopPropagation: ()=>{}});
-                modeSwitched = true; break;
-              }
-            }
-          }
+    // Always click "更多" first — all skill modes live behind it
+    const allBtns = Array.from(document.querySelectorAll('button, div'));
+    const moreBtn = allBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
+    if (moreBtn) {
+      moreBtn.click();
+      await new Promise(r => setTimeout(r, 500));
+      // Search in the expanded popup/panel by exact text match
+      for (const b of document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]')) {
+        if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
+          b.click();
+          modeSwitched = true;
+          break;
         }
-        if (modeSwitched) break;
       }
     }
 
-    // Strategy 3: "更多" button
+    // Fallback: direct toolbar click (if button is already visible)
     if (!modeSwitched) {
-      const moreBtn = Array.from(document.querySelectorAll('button, div')).find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
-      if (moreBtn) {
-        moreBtn.click();
-        await new Promise(r => setTimeout(r, 400));
-        for (const b of document.querySelectorAll('button, div[class*=cursor-pointer]')) {
-          if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
-            b.click();
-            modeSwitched = true; break;
-          }
+      for (const b of document.querySelectorAll('button')) {
+        if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
+          b.click();
+          modeSwitched = true;
+          break;
         }
       }
     }
 
     // Wait for React state to update the input element
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 800));
   }
 
   // ── Translate: select target language ──
@@ -182,6 +158,8 @@ async function(args) {
   }
 
   // ── Re-discover input after mode switch ──
+  // Wait for React to fully render the new input element
+  await new Promise(r => setTimeout(r, 300));
   const ta2 = document.querySelector('textarea');
   const ce2 = document.querySelector('[contenteditable="true"]');
   let submitEl = null;
@@ -199,13 +177,15 @@ async function(args) {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(submitEl, args.message);
     submitEl.dispatchEvent(new Event('input', { bubbles: true }));
   } else {
+    // Slate.js editor: must use beforeinput event (not execCommand)
     submitEl.focus();
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(submitEl);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('insertText', false, args.message);
+    submitEl.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: args.message,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }));
   }
 
   // ── Submit ──

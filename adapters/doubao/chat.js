@@ -67,22 +67,30 @@ async function(args) {
   const modeLabel = modes[args.mode];
   if (modeLabel) {
     let clicked = false;
-    const toolbarBtns = Array.from(document.querySelectorAll('button'));
-    for (const b of toolbarBtns) {
-      if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
-        b.click(); clicked = true; break;
-      }
-    }
-    if (!clicked) {
-      const moreBtn = toolbarBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
-      if (moreBtn) { moreBtn.click(); await new Promise(r => setTimeout(r, 400)); }
-      for (const b of document.querySelectorAll('dialog button, [role="dialog"] button, button')) {
+
+    // Always click "更多" first — all skill modes live behind it
+    const allBtns = Array.from(document.querySelectorAll('button, div'));
+    const moreBtn = allBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
+    if (moreBtn) {
+      moreBtn.click();
+      await new Promise(r => setTimeout(r, 500));
+      for (const b of document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]')) {
         if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
           b.click(); clicked = true; break;
         }
       }
     }
-    await new Promise(r => setTimeout(r, 200));
+
+    // Fallback: direct toolbar click
+    if (!clicked) {
+      for (const b of document.querySelectorAll('button')) {
+        if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
+          b.click(); clicked = true; break;
+        }
+      }
+    }
+
+    await new Promise(r => setTimeout(r, 800));
   }
 
   const beforeCount = document.querySelectorAll('[class*="markdown-body"]').length;
@@ -92,14 +100,15 @@ async function(args) {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, args.message);
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   } else if (ce) {
+    // Slate.js editor: must use beforeinput event (not execCommand)
     ce.focus();
-    // Clear and insert via execCommand (triggers Slate's onInput)
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(ce);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('insertText', false, args.message);
+    ce.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: args.message,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }));
   }
 
   onSubmit();
