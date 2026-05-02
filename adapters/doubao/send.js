@@ -87,12 +87,6 @@ async function(args) {
   const skipUISwitch = new Set(['编程', '图像生成']);
   const modeLabel = modes[args.mode];
   if (modeLabel && !skipUISwitch.has(modeLabel)) {
-    const skillTypeMap = {
-      '帮我写作': 2, 'PPT 生成': 5000, '编程': 16, '图像生成': 3,
-      '翻译': 5, '深入研究': 6, '视频生成': 17, '音乐生成': 9,
-      'AI 播客': 26, '记录会议': 10, '解题答疑': 11, '数据分析': 13, '超能模式': 138
-    };
-    const targetSkillType = skillTypeMap[modeLabel];
     let modeSwitched = false;
 
     // Strategy 1: Click mode button directly
@@ -146,27 +140,8 @@ async function(args) {
       }
     }
 
-    // Wait for React state — poll for activeSkillType and mode-specific UI
-    if (targetSkillType !== undefined) {
-      for (let attempt = 0; attempt < 30; attempt++) {
-        await new Promise(res => setTimeout(res, 100));
-        const ceCheck = document.querySelector('[contenteditable="true"]');
-        const taCheck = document.querySelector('textarea');
-        const check = (ceCheck && ceCheck.getBoundingClientRect().height > 0) ? ceCheck : taCheck;
-        if (check) {
-          const fk = Object.keys(check).find(k => k.startsWith('__reactFiber'));
-          if (fk) {
-            let f = check[fk];
-            for (let j = 0; j < 40 && f; j++) {
-              const p = f.memoizedProps || {};
-              if (p.activeSkillType === targetSkillType) { attempt = 999; break; }
-              if (p.skill && typeof p.skill === 'object' && p.skill.skill_type === targetSkillType) { attempt = 999; break; }
-              f = f.return;
-            }
-          }
-        }
-      }
-    }
+    // Wait for React state to update the input element
+    await new Promise(r => setTimeout(r, 500));
   }
 
   // ── Translate: select target language ──
