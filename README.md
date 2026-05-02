@@ -76,10 +76,14 @@ doubao-cli account
 ```bash
 doubao-cli chat "hello"                       # Normal chat
 doubao-cli chat --thinking expert "..."       # Expert thinking mode
+doubao-cli coding "write quicksort in python" # Code assistant
+doubao-cli solve "prove Taylor theorem"       # Problem solver
 doubao-cli image "a cat wearing sunglasses"   # Generate image
 doubao-cli translate --to-english "你好"      # Translate to English
-doubao-cli ppt "AI development history"        # Generate PPT
-doubao-cli --help                              # All commands
+doubao-cli ppt "AI development history"       # Generate PPT
+doubao-cli writing "write a self introduction" # Writing assistant
+doubao-cli super "research vibe coding"       # Super mode
+doubao-cli --help                             # All commands
 ```
 
 ## Available Commands
@@ -100,7 +104,7 @@ doubao-cli --help                              # All commands
 | `doubao-cli translate --to-english <text>` | Translate to English |
 | `doubao-cli translate --to-chinese <text>` | Translate to Chinese |
 | `doubao-cli coding <prompt>` | Code assistant |
-| `doubao-cli math <problem>` | Math problem solver |
+| `doubao-cli solve <problem>` | Problem solver (all subjects) |
 | `doubao-cli image <description>` | Image generation |
 | `doubao-cli ppt <topic>` | PPT generation |
 | `doubao-cli writing <prompt>` | Writing assistant |
