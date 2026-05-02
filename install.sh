@@ -51,11 +51,11 @@ done
 echo -e "${GREEN}${ADAPTER_COUNT} 个适配器${RESET}"
 
 # 3. Verify
-# Detect if installed globally (doubao is in PATH) or locally (use absolute path)
-if command -v doubao &>/dev/null; then
-    DOUBAO_CMD="doubao"
+# Detect if installed globally (doubao-cli is in PATH) or locally (use absolute path)
+if command -v doubao-cli &>/dev/null; then
+    DOUBAO_CMD="doubao-cli"
 else
-    DOUBAO_CMD="$SCRIPT_DIR/doubao"
+    DOUBAO_CMD="$SCRIPT_DIR/doubao-cli"
 fi
 
 echo ""

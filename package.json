@@ -3,15 +3,15 @@
   "version": "1.0.4",
   "description": "豆包 AI 命令行工具 — 通过 bb-browser CLI 化豆包 Web 端所有功能",
   "bin": {
-    "doubao-cli": "doubao"
+    "doubao-cli": "doubao-cli"
   },
   "scripts": {
     "postinstall": "bash install.sh",
-    "test": "./doubao account",
-    "prepublishOnly": "bash -n doubao && bash -n install.sh"
+    "test": "./doubao-cli account",
+    "prepublishOnly": "bash -n doubao-cli && bash -n install.sh"
   },
   "files": [
-    "doubao",
+    "doubao-cli",
     "install.sh",
     "adapters/",
     "README.md"
