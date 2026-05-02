@@ -80,13 +80,15 @@ function(args) {
     };
     if (references) r.references = references;
 
-    // Check for PPT iframe (ccm-slides) — indicates PPT generation complete
+    // Check for PPT iframe (ccm-slides) — extract token for clean preview URL
     const pptIframe = Array.from(document.querySelectorAll('iframe')).find(
       f => f.src && f.src.includes('ccm-slides') && f.getBoundingClientRect().height > 0
     );
     if (pptIframe) {
-      r.ppt_url = pptIframe.src;
-      r.message += '\n\n[PPT 预览链接](' + pptIframe.src + ')';
+      const token = new URL(pptIframe.src).searchParams.get('token');
+      if (token) {
+        r.ppt_url = 'https://www.doubao.com/slides/' + token;
+      }
     }
 
     return r;

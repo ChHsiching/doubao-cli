@@ -399,6 +399,8 @@ chat_send_and_poll() {
                 # Not stable enough yet — keep polling
                 continue
             fi
+            # Clear spinner line before outputting result
+            printf '\r%s\r' "$(printf ' %.0s' $(seq 1 40))" >&2
             local msg mode refs ppt_url conv_id
             msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
             mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
@@ -439,12 +441,11 @@ chat_send_and_poll() {
             # Content still changing — reset done counter
             done_count=0
         fi
-        # Show progress every 3 seconds
-        if [ $((elapsed % 6)) -eq 0 ]; then
-            printf "." >&2
-        fi
+        # Spinner + elapsed timer
+        local spinner_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+        printf '\r  %s 等待回复中... %ds' "${spinner_chars[$((elapsed % 10))]}" "$elapsed" >&2
     done
-    echo ""
+    printf '\n' >&2
     echo "⚠ 等待超时（${max_wait}s）。用 doubao-cli last 获取回复。"
     return 1
 }
