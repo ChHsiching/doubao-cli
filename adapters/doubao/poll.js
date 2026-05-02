@@ -67,6 +67,16 @@ function(args) {
       len
     };
     if (references) r.references = references;
+
+    // Check for PPT iframe (ccm-slides) — indicates PPT generation complete
+    const pptIframe = Array.from(document.querySelectorAll('iframe')).find(
+      f => f.src && f.src.includes('ccm-slides') && f.getBoundingClientRect().height > 0
+    );
+    if (pptIframe) {
+      r.ppt_url = pptIframe.src;
+      r.message += '\n\n[PPT 预览链接](' + pptIframe.src + ')';
+    }
+
     return r;
   }
 

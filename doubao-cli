@@ -296,6 +296,8 @@ chat_send_and_poll() {
     ensure_headless
     ensure_daemon || true
 
+    local max_wait=${CHAT_POLL_MAX_WAIT:-120}
+
     local tab_id
     tab_id=$(get_doubao_tab)
     if [ -z "$tab_id" ]; then
@@ -346,7 +348,6 @@ chat_send_and_poll() {
     before_count=$(echo "$send_out" | jq -r '.before_count // 0' 2>/dev/null) || before_count=0
 
     # Phase 2: Poll — 1s intervals, detect completion when content length stabilizes
-    local max_wait=120
     local elapsed=0
     local prev_len=0
     local stale_count=0
@@ -743,6 +744,9 @@ case "$cmd" in
         # Pass translate_target as extra arg for the adapter
         if [ "$cmd" = "translate" ] && [ -n "$TRANSLATE_TARGET" ]; then
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
+        elif [ "$cmd" = "ppt" ]; then
+            # PPT generation takes 10-30 minutes, use extended timeout
+            CHAT_POLL_MAX_WAIT=1800 chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         else
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         fi
