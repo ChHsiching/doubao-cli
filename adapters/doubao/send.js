@@ -88,9 +88,9 @@ async function(args) {
   const modeLabel = modes[args.mode];
   if (modeLabel && !skipUISwitch.has(modeLabel)) {
     const skillTypeMap = {
-      '帮我写作': 1, 'PPT 生成': 2, '编程': 16, '图像生成': 4,
-      '翻译': 5, '深入研究': 6, '视频生成': 7, '音乐生成': 8,
-      'AI 播客': 9, '记录会议': 10, '解题答疑': 11, '数据分析': 12, '超能模式': 13
+      '帮我写作': 2, 'PPT 生成': 5000, '编程': 16, '图像生成': 3,
+      '翻译': 5, '深入研究': 6, '视频生成': 17, '音乐生成': 9,
+      'AI 播客': 26, '记录会议': 10, '解题答疑': 11, '数据分析': 13, '超能模式': 138
     };
     const targetSkillType = skillTypeMap[modeLabel];
     let modeSwitched = false;
