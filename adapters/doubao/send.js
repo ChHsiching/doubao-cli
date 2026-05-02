@@ -18,9 +18,9 @@ async function(args) {
   }
 
   const modes = {
-    chat: null, writing: '帮我写作', ppt: 'PPT 生成', coding: '编程',
+    chat: null, writing: '写作', ppt: 'PPT生成', coding: '编程',
     image: '图像生成', translate: '翻译', research: '深入研究',
-    video: '视频生成', music: '音乐生成', podcast: 'AI 播客',
+    video: '视频生成', music: '音乐生成', podcast: 'AI播客',
     meeting: '记录会议', math: '解题答疑', data: '数据分析', super: '超能模式',
   };
   // Modes that use Slate.js contenteditable instead of textarea
@@ -88,9 +88,9 @@ async function(args) {
   const modeLabel = modes[args.mode];
   if (modeLabel && !skipUISwitch.has(modeLabel)) {
     const skillTypeMap = {
-      '帮我写作': 1, 'PPT 生成': 2, '编程': 16, '图像生成': 4,
+      '写作': 1, 'PPT生成': 2, '编程': 16, '图像生成': 4,
       '翻译': 5, '深入研究': 6, '视频生成': 7, '音乐生成': 8,
-      'AI 播客': 9, '记录会议': 10, '解题答疑': 11, '数据分析': 12, '超能模式': 13
+      'AI播客': 9, '记录会议': 10, '解题答疑': 11, '数据分析': 12, '超能模式': 13
     };
     const targetSkillType = skillTypeMap[modeLabel];
     let modeSwitched = false;
