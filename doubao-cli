@@ -736,6 +736,15 @@ case "$cmd" in
         done
         MSG="${MSG_ARGS[*]}"
         [ -z "$MSG" ] && { echo "用法: doubao-cli $cmd [--to-english|--to-chinese] <内容>"; exit 1; }
+        # translate requires --to-english or --to-chinese
+        if [ "$cmd" = "translate" ] && [ -z "$TRANSLATE_TARGET" ]; then
+            echo "错误: 翻译模式需要指定目标语言"
+            echo "  --to-english    翻译为英文"
+            echo "  --to-chinese    翻译为中文"
+            echo ""
+            echo "示例: doubao-cli translate --to-english 你好世界"
+            exit 1
+        fi
         declare -A MODE_MAP=(
             [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
             [image]=image [video]=video [music]=music
