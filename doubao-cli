@@ -367,8 +367,8 @@ chat_send_and_poll() {
         prev_len=$cur_len
 
         # Detect stale page: if still "waiting" after 30s, refresh and retry
-        # Skip for long-running modes (PPT) where waiting is expected during generation
-        if [ "$CHAT_POLL_MODE" != "ppt" ] && echo "$poll_out" | grep -q '"status": "waiting"'; then
+        # Skip for generation modes (ppt/video/music/podcast) where waiting is expected
+        if [ -z "$CHAT_POLL_MODE" ] && echo "$poll_out" | grep -q '"status": "waiting"'; then
             stale_count=$((stale_count + 1))
             if [ $stale_count -ge 30 ]; then
                 # Check for local_ URL (server conversation creation failed)
@@ -428,7 +428,6 @@ chat_send_and_poll() {
                 if [ -n "$ppt_url" ]; then
                     echo "PPT 预览: $ppt_url" >&2
                 fi
-                echo "  PPT 文件可能仍在后台生成，请在浏览器中打开对话链接查看/下载" >&2
             elif [ -n "$conv_id" ] && echo "$msg" | grep -qi '制作完成\|已经为您'; then
                 echo "" >&2
                 echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
@@ -685,42 +684,44 @@ case "$cmd" in
         echo "用法: doubao-cli <命令> [参数...]"
         echo ""
         echo "登录:"
-        echo "  doubao-cli login                    交互式登录（手机号+验证码）"
-        echo "  doubao-cli login <手机号>           发送验证码"
-        echo "  doubao-cli login <手机号> <验证码>  发送验证码并登录"
-        echo "  doubao-cli login --web              打开浏览器手动登录"
-        echo "  doubao-cli logout                   退出登录"
+        echo "  doubao-cli login                      交互式登录（手机号+验证码）"
+        echo "  doubao-cli login <手机号>             发送验证码"
+        echo "  doubao-cli login <手机号> <验证码>    发送验证码并登录"
+        echo "  doubao-cli login --web                打开浏览器手动登录"
+        echo "  doubao-cli logout                     退出登录"
         echo ""
         echo "聊天:"
-        echo "  doubao-cli '你好'                   发消息（自动检测登录）"
-        echo "  doubao-cli chat --mode coding '写快排'"
-        echo "  doubao-cli chat --thinking expert '...'"
+        echo "  doubao-cli chat '你好'                                  普通对话"
+        echo "  doubao-cli chat --thinking quick '...'                  快速模式（默认）"
+        echo "  doubao-cli chat --thinking think '...'                  思考模式"
+        echo "  doubao-cli chat --thinking expert '...'                 专家模式"
         echo ""
         echo "功能模式:"
-        echo "  doubao-cli translate '你好'                      翻译（自动检测）"
-        echo "  doubao-cli translate --to-english '你好'          中译英"
-        echo "  doubao-cli translate --to-chinese 'Hello'         英译中"
-        echo "  doubao-cli coding '写快排'     编程"
-        echo "  doubao-cli math '解方程'       数学"
-        echo "  doubao-cli image '猫'          图像"
-        echo "  doubao-cli ppt 'AI发展'        PPT"
-        echo "  doubao-cli writing '...'       写作"
-        echo "  doubao-cli super '...'         超能"
-        echo "  (还有: video music podcast meeting data)"
+        echo "  doubao-cli translate --to-english '你好世界'            中译英"
+        echo "  doubao-cli translate --to-chinese 'Hello World'         英译中"
+        echo "  doubao-cli coding '用python写快排'                      编程助手"
+        echo "  doubao-cli math '证明泰勒定理'                          解题答疑"
+        echo "  doubao-cli image '画一只猫'                             图像生成"
+        echo "  doubao-cli ppt 'AI发展史'                               PPT生成"
+        echo "  doubao-cli writing '写一份自我介绍'                      帮我写作"
+        echo "  doubao-cli video '宇宙大爆炸'                           视频生成"
+        echo "  doubao-cli music '猪猪之歌'                             音乐生成"
+        echo "  doubao-cli podcast 'linux内核最新漏洞'                  AI播客"
+        echo "  doubao-cli data '排序：4,6,2,12,5'                      数据分析"
+        echo "  doubao-cli super '研究vibe coding'                      超能模式"
         echo ""
         echo "会话管理:"
-        echo "  doubao-cli list                 查看会话列表"
-        echo "  doubao-cli load <ID>            加载历史会话"
-        echo "  doubao-cli new                  新建会话"
-        echo "  doubao-cli last                 最新回复"
-        echo "  doubao-cli retry                重新生成最新回复"
-        echo "  doubao-cli delete <ID>          删除会话"
+        echo "  doubao-cli list                   查看会话列表"
+        echo "  doubao-cli load <ID>              加载历史会话"
+        echo "  doubao-cli new                    新建会话"
+        echo "  doubao-cli last                   最新回复"
+        echo "  doubao-cli retry                  重新生成最新回复"
+        echo "  doubao-cli delete <ID>            删除会话"
         echo ""
         echo "系统:"
-        echo "  doubao-cli account              账户信息"
-        echo "  doubao-cli daemon               daemon 状态"
-        echo ""
-        echo "思考深度: quick think expert"
+        echo "  doubao-cli account                账户信息"
+        echo "  doubao-cli daemon                 daemon状态"
+        echo "  doubao-cli stop                   停止daemon"
         ;;
 
     login)
@@ -758,7 +759,7 @@ case "$cmd" in
         do_image "$MSG"
         ;;
 
-    translate|writing|ppt|coding|video|music|podcast|meeting|math|data|super)
+    translate|writing|ppt|coding|video|music|podcast|math|data|super)
         TRANSLATE_TARGET=""
         MSG_ARGS=()
         for arg in "$@"; do
@@ -782,14 +783,17 @@ case "$cmd" in
         declare -A MODE_MAP=(
             [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
             [image]=image [video]=video [music]=music
-            [podcast]=podcast [meeting]=meeting [math]=math [data]=data [super]=super
+            [podcast]=podcast [math]=math [data]=data [super]=super
         )
         # Pass translate_target as extra arg for the adapter
         if [ "$cmd" = "translate" ] && [ -n "$TRANSLATE_TARGET" ]; then
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
         elif [ "$cmd" = "ppt" ]; then
-            # PPT generation takes 10-30 minutes, use extended timeout
-            CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=ppt chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+            CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=ppt \
+                chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+        elif [ "$cmd" = "video" ] || [ "$cmd" = "music" ] || [ "$cmd" = "podcast" ]; then
+            CHAT_POLL_MAX_WAIT=600 CHAT_POLL_STABLE_COUNT=3 CHAT_POLL_MODE=generate \
+                chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         else
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         fi
@@ -921,19 +925,8 @@ case "$cmd" in
     stop) $BB_CMD daemon stop 2>/dev/null; echo "已停止" ;;
 
     *)
-        # Re-collect all args (including $cmd) and parse options uniformly
-        THINKING="" MODE="" MSG_ARGS=()
-        set -- "$cmd" "$@"
-        while [ $# -gt 0 ]; do
-            case "$1" in
-                --thinking) [ $# -ge 2 ] && { THINKING="$2"; shift 2; } || shift ;;
-                --mode) [ $# -ge 2 ] && { MODE="$2"; shift 2; } || shift ;;
-                *) MSG_ARGS+=("$1"); shift ;;
-            esac
-        done
-        MSG="${MSG_ARGS[*]}"
-        [ -z "$MSG" ] && { echo "用法: doubao-cli [选项] <消息>"; exit 1; }
-        ARGS=("$MSG" "${MODE:-}" "${THINKING:-}")
-        chat_send_and_poll "${ARGS[@]}"
+        echo "未知命令: $cmd"
+        echo "运行 doubao-cli --help 查看帮助"
+        exit 1
         ;;
 esac

@@ -74,34 +74,60 @@ doubao-cli account
 ### Usage
 
 ```bash
-doubao-cli "hello"                          # Quick chat
-doubao-cli image "a cat wearing sunglasses"  # Generate image
-doubao-cli translate --to-english "你好"     # Translate
-doubao-cli coding "write quicksort"          # Coding mode
-doubao-cli math "solve x^2 + 3x - 4 = 0"   # Math mode
-doubao-cli help                              # All commands
+doubao-cli chat "hello"                       # Normal chat
+doubao-cli chat --thinking expert "..."       # Expert thinking mode
+doubao-cli image "a cat wearing sunglasses"   # Generate image
+doubao-cli translate --to-english "你好"      # Translate to English
+doubao-cli ppt "AI development history"        # Generate PPT
+doubao-cli --help                              # All commands
 ```
 
 ## Available Commands
 
+### Chat
+
 | Command | Description |
 |---------|-------------|
-| `doubao-cli "message"` | Send a message |
-| `doubao-cli image <desc>` | AI image generation |
-| `doubao-cli translate <text>` | Translation |
+| `doubao-cli chat <message>` | Normal chat |
+| `doubao-cli chat --thinking quick <msg>` | Quick mode (default) |
+| `doubao-cli chat --thinking think <msg>` | Think mode |
+| `doubao-cli chat --thinking expert <msg>` | Expert mode |
+
+### Mode Commands
+
+| Command | Description |
+|---------|-------------|
 | `doubao-cli translate --to-english <text>` | Translate to English |
 | `doubao-cli translate --to-chinese <text>` | Translate to Chinese |
 | `doubao-cli coding <prompt>` | Code assistant |
-| `doubao-cli math <problem>` | Math solver |
-| `doubao-cli writing <prompt>` | Writing assistant |
+| `doubao-cli math <problem>` | Math problem solver |
+| `doubao-cli image <description>` | Image generation |
 | `doubao-cli ppt <topic>` | PPT generation |
-| `doubao-cli login` | Login (interactive) |
-| `doubao-cli login --web` | Login (browser) |
+| `doubao-cli writing <prompt>` | Writing assistant |
+| `doubao-cli video <prompt>` | Video generation |
+| `doubao-cli music <prompt>` | Music generation |
+| `doubao-cli podcast <topic>` | AI podcast |
+| `doubao-cli data <prompt>` | Data analysis |
+| `doubao-cli super <prompt>` | Super mode |
+
+### Session Management
+
+| Command | Description |
+|---------|-------------|
 | `doubao-cli list` | List conversations |
+| `doubao-cli load <ID>` | Load conversation |
 | `doubao-cli new` | New conversation |
-| `doubao-cli last` | Last response |
-| `doubao-cli retry` | Regenerate response |
+| `doubao-cli last` | Latest response |
+| `doubao-cli retry` | Regenerate last response |
+| `doubao-cli delete <ID>` | Delete conversation |
+
+### System
+
+| Command | Description |
+|---------|-------------|
 | `doubao-cli account` | Account info |
+| `doubao-cli daemon` | Daemon status |
+| `doubao-cli stop` | Stop daemon |
 
 ## How It Works
 

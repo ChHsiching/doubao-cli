@@ -21,7 +21,6 @@ const MODE_COMMANDS = new Set([
   "video",
   "music",
   "podcast",
-  "meeting",
   "math",
   "data",
   "super",
@@ -33,28 +32,31 @@ function showHelp(): void {
 Usage: doubao-cli <command> [args...]
 
 Login:
-  doubao-cli login                    Interactive login (phone + code)
-  doubao-cli login <phone>            Send verification code
-  doubao-cli login <phone> <code>     Login with code
-  doubao-cli login --web              Browser login
-  doubao-cli logout                   Logout
+  doubao-cli login                      Interactive login (phone + code)
+  doubao-cli login <phone>              Send verification code
+  doubao-cli login <phone> <code>       Send code and login
+  doubao-cli login --web                Open browser for manual login
+  doubao-cli logout                     Logout
 
 Chat:
-  doubao-cli 'hello'                  Send message (auto-detect login)
-  doubao-cli chat --mode coding 'write quicksort'
-  doubao-cli chat --thinking expert '...'
+  doubao-cli chat 'hello'                                  Normal chat
+  doubao-cli chat --thinking quick '...'                    Quick mode (default)
+  doubao-cli chat --thinking think '...'                    Think mode
+  doubao-cli chat --thinking expert '...'                   Expert mode
 
 Mode commands:
-  doubao-cli translate 'hello'                  Translate (auto-detect)
-  doubao-cli translate --to-english '你好'      Chinese to English
-  doubao-cli translate --to-chinese 'Hello'     English to Chinese
-  doubao-cli coding 'write quicksort'   Coding
-  doubao-cli math 'solve equation'      Math
-  doubao-cli image 'a cat'              Image
-  doubao-cli ppt 'AI history'           PPT
-  doubao-cli writing '...'              Writing
-  doubao-cli super '...'                Super mode
-  (also: video music podcast meeting data)
+  doubao-cli translate --to-english '你好世界'              Chinese to English
+  doubao-cli translate --to-chinese 'Hello World'           English to Chinese
+  doubao-cli coding 'write quicksort in python'             Coding assistant
+  doubao-cli math 'prove Taylor theorem'                    Math problem solver
+  doubao-cli image 'draw a cat'                             Image generation
+  doubao-cli ppt 'AI development history'                   PPT generation
+  doubao-cli writing 'write a self introduction'             Writing assistant
+  doubao-cli video 'Big Bang'                                Video generation
+  doubao-cli music 'Piggy song'                              Music generation
+  doubao-cli podcast 'Latest Linux kernel CVE'               AI podcast
+  doubao-cli data 'sort: 4,6,2,12,5'                        Data analysis
+  doubao-cli super 'research vibe coding'                    Super mode
 
 Session:
   doubao-cli list                      List conversations
@@ -67,7 +69,7 @@ Session:
 System:
   doubao-cli account                   Account info
   doubao-cli daemon                    Daemon status
-  doubao-cli stop                      Stop Chrome daemon`);
+  doubao-cli stop                      Stop daemon`);
 }
 
 async function main(): Promise<void> {
@@ -97,13 +99,10 @@ async function main(): Promise<void> {
         break;
 
       case "chat": {
-        let mode = "";
         let thinking = "";
         const msgParts: string[] = [];
         for (let i = 1; i < args.length; i++) {
-          if (args[i] === "--mode" && i + 1 < args.length) {
-            mode = args[++i];
-          } else if (args[i] === "--thinking" && i + 1 < args.length) {
+          if (args[i] === "--thinking" && i + 1 < args.length) {
             thinking = args[++i];
           } else {
             msgParts.push(args[i]);
@@ -111,10 +110,10 @@ async function main(): Promise<void> {
         }
         const msg = msgParts.join(" ");
         if (!msg) {
-          console.log("Usage: doubao-cli chat <message>");
+          console.log("Usage: doubao-cli chat [--thinking quick|think|expert] <message>");
           process.exit(1);
         }
-        await chatSendAndPoll(msg, mode, thinking);
+        await chatSendAndPoll(msg, "", thinking);
         break;
       }
 
@@ -168,7 +167,6 @@ async function main(): Promise<void> {
         break;
 
       default:
-        // Re-parse with options for catch-all mode
         if (MODE_COMMANDS.has(cmd)) {
           let translateTarget = "";
           const msgParts: string[] = [];
@@ -192,25 +190,9 @@ async function main(): Promise<void> {
           }
           await chatSendAndPoll(msg, cmd, "", translateTarget);
         } else {
-          // Treat as quick chat message
-          let thinking = "";
-          let mode = "";
-          const msgParts: string[] = [];
-          for (let i = 0; i < args.length; i++) {
-            if (args[i] === "--thinking" && i + 1 < args.length) {
-              thinking = args[++i];
-            } else if (args[i] === "--mode" && i + 1 < args.length) {
-              mode = args[++i];
-            } else {
-              msgParts.push(args[i]);
-            }
-          }
-          const msg = msgParts.join(" ");
-          if (!msg) {
-            console.log("Usage: doubao-cli [options] <message>");
-            process.exit(1);
-          }
-          await chatSendAndPoll(msg, mode, thinking);
+          console.log(`Unknown command: ${cmd}`);
+          console.log("Run doubao-cli --help for usage");
+          process.exit(1);
         }
         break;
     }
