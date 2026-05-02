@@ -21,55 +21,55 @@ const MODE_COMMANDS = new Set([
   "video",
   "music",
   "podcast",
-  "math",
+  "solve",
   "data",
   "super",
 ]);
 
 function showHelp(): void {
-  console.log(`doubao-cli — Doubao AI CLI tool
+  console.log(`doubao-cli — 豆包 AI 命令行工具
 
-Usage: doubao-cli <command> [args...]
+用法: doubao-cli <命令> [参数...]
 
-Login:
-  doubao-cli login                      Interactive login (phone + code)
-  doubao-cli login <phone>              Send verification code
-  doubao-cli login <phone> <code>       Send code and login
-  doubao-cli login --web                Open browser for manual login
-  doubao-cli logout                     Logout
+登录:
+  doubao-cli login                        交互式登录（手机号+验证码）
+  doubao-cli login <手机号>               发送验证码
+  doubao-cli login <手机号> <验证码>      发送验证码并登录
+  doubao-cli login --web                  打开浏览器手动登录
+  doubao-cli logout                       退出登录
 
-Chat:
-  doubao-cli chat 'hello'                                  Normal chat
-  doubao-cli chat --thinking quick '...'                    Quick mode (default)
-  doubao-cli chat --thinking think '...'                    Think mode
-  doubao-cli chat --thinking expert '...'                   Expert mode
+聊天:
+  doubao-cli chat '你好'                                    普通对话
+  doubao-cli chat --thinking quick '...'                    快速模式（默认）
+  doubao-cli chat --thinking think '...'                    思考模式
+  doubao-cli chat --thinking expert '...'                   专家模式
 
-Mode commands:
-  doubao-cli translate --to-english '你好世界'              Chinese to English
-  doubao-cli translate --to-chinese 'Hello World'           English to Chinese
-  doubao-cli coding 'write quicksort in python'             Coding assistant
-  doubao-cli math 'prove Taylor theorem'                    Math problem solver
-  doubao-cli image 'draw a cat'                             Image generation
-  doubao-cli ppt 'AI development history'                   PPT generation
-  doubao-cli writing 'write a self introduction'             Writing assistant
-  doubao-cli video 'Big Bang'                                Video generation
-  doubao-cli music 'Piggy song'                              Music generation
-  doubao-cli podcast 'Latest Linux kernel CVE'               AI podcast
-  doubao-cli data 'sort: 4,6,2,12,5'                        Data analysis
-  doubao-cli super 'research vibe coding'                    Super mode
+功能模式:
+  doubao-cli translate --to-english '你好世界'              中译英
+  doubao-cli translate --to-chinese 'Hello World'           英译中
+  doubao-cli coding '用python写快排'                        编程助手
+  doubao-cli solve '证明泰勒定理'                           解题答疑（支持各学科）
+  doubao-cli image '画一只猫'                               图像生成
+  doubao-cli ppt 'AI发展史'                                 PPT生成
+  doubao-cli writing '写一份自我介绍'                        帮我写作
+  doubao-cli video '宇宙大爆炸'                             视频生成
+  doubao-cli music '猪猪之歌'                               音乐生成
+  doubao-cli podcast 'linux内核最新漏洞'                    AI播客
+  doubao-cli data '排序：4,6,2,12,5'                        数据分析
+  doubao-cli super '研究vibe coding'                        超能模式
 
-Session:
-  doubao-cli list                      List conversations
-  doubao-cli load <ID>                 Load conversation
-  doubao-cli new                       New conversation
-  doubao-cli last                      Latest response
-  doubao-cli retry                     Regenerate last response
-  doubao-cli delete <ID>               Delete conversation
+会话管理:
+  doubao-cli list                     查看会话列表
+  doubao-cli load <ID>                加载历史会话
+  doubao-cli new                      新建会话
+  doubao-cli last                     最新回复
+  doubao-cli retry                    重新生成最新回复
+  doubao-cli delete <ID>              删除会话
 
-System:
-  doubao-cli account                   Account info
-  doubao-cli daemon                    Daemon status
-  doubao-cli stop                      Stop daemon`);
+系统:
+  doubao-cli account                  账户信息
+  doubao-cli daemon                   daemon状态
+  doubao-cli stop                     停止daemon`);
 }
 
 async function main(): Promise<void> {
@@ -181,11 +181,11 @@ async function main(): Promise<void> {
             process.exit(1);
           }
           if (cmd === "translate" && !translateTarget) {
-            console.log("Error: translate requires a target language");
-            console.log("  --to-english    Translate to English");
-            console.log("  --to-chinese    Translate to Chinese");
+            console.log("错误: 翻译模式需要指定目标语言");
+            console.log("  --to-english    翻译为英文");
+            console.log("  --to-chinese    翻译为中文");
             console.log("");
-            console.log("Example: doubao-cli translate --to-english 你好世界");
+            console.log("示例: doubao-cli translate --to-english 你好世界");
             process.exit(1);
           }
           await chatSendAndPoll(msg, cmd, "", translateTarget);
