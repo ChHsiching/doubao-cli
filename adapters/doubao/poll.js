@@ -16,19 +16,31 @@ function(args) {
   }
   const beforeCount = parseInt(args.before_count) || 0;
   const prevLen = parseInt(args.prev_len) || 0;
-  const mdCount = document.querySelectorAll('[class*="markdown-body"]').length;
+
+  // Exclude thinking-chain markdown-bodies: elements inside [data-thinking-box-collapsed-step-content]
+  const allMd = Array.from(document.querySelectorAll('[class*="markdown-body"]'));
+  const realMd = allMd.filter(md => !md.closest('[data-thinking-box-collapsed-step-content]'));
+  const mdCount = realMd.length;
 
   if (mdCount <= beforeCount) {
-    return { status: 'waiting', mdCount, beforeCount };
+    return { status: 'waiting', mdCount: allMd.length, realMdCount: mdCount, beforeCount };
   }
 
-  const newMd = document.querySelectorAll('[class*="markdown-body"]')[mdCount - 1];
+  const newMd = realMd[mdCount - 1];
   if (!newMd) return { status: 'waiting', mdCount, beforeCount };
 
   const text = newMd.innerText?.trim() || '';
   const len = text.length;
 
   if (len > 0 && len === prevLen) {
+    // PPT: if completion text appears but iframe not yet loaded, wait
+    if (/制作完成|已经为您.*完成/.test(text)) {
+      const hasIframe = Array.from(document.querySelectorAll('iframe')).some(
+        f => f.src && f.src.includes('ccm-slides') && f.getBoundingClientRect().height > 0
+      );
+      if (!hasIframe) return { status: 'streaming', len, prevLen, preview: text.substring(0, 200), hint: 'waiting for PPT iframe' };
+    }
+
     const thinkBtn = Array.from(document.querySelectorAll('button'))
       .find(b => /^(快速|思考|专家)/.test(b.innerText?.trim()) && b.querySelector('button') && b.getBoundingClientRect().width > 0);
     const thinkingMode = thinkBtn?.innerText?.trim() || '快速';
@@ -67,6 +79,18 @@ function(args) {
       len
     };
     if (references) r.references = references;
+
+    // Check for PPT iframe (ccm-slides) — extract token for clean preview URL
+    const pptIframe = Array.from(document.querySelectorAll('iframe')).find(
+      f => f.src && f.src.includes('ccm-slides') && f.getBoundingClientRect().height > 0
+    );
+    if (pptIframe) {
+      const token = new URL(pptIframe.src).searchParams.get('token');
+      if (token) {
+        r.ppt_url = 'https://www.doubao.com/slides/' + token;
+      }
+    }
+
     return r;
   }
 

@@ -30,17 +30,18 @@ export async function doImage(message: string): Promise<void> {
   })()`);
   await new Promise((r) => setTimeout(r, 3000));
 
-  // Type message into contenteditable
+  // Type message into contenteditable (Slate.js requires beforeinput event)
   await session.evalJs(`(function(){
     const ce = document.querySelector('[contenteditable="true"]');
     if (!ce) return;
     ce.focus();
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(ce);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('insertText', false, ${JSON.stringify(message)});
+    ce.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: ${JSON.stringify(message)},
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }));
   })()`);
   await new Promise((r) => setTimeout(r, 1000));
 

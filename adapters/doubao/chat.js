@@ -46,9 +46,9 @@ async function(args) {
   if (!onSubmit) return { error: 'onSubmit not found' };
 
   const modes = {
-    chat: null, writing: '写作', ppt: 'PPT生成', coding: '编程',
+    chat: null, writing: '帮我写作', ppt: 'PPT 生成', coding: '编程',
     image: '图像生成', translate: '翻译', research: '深入研究',
-    video: '视频生成', music: '音乐生成', podcast: 'AI播客',
+    video: '视频生成', music: '音乐生成', podcast: 'AI 播客',
     meeting: '记录会议', math: '解题答疑', data: '数据分析', super: '超能模式',
   };
   const depths = { quick: '快速', think: '思考', expert: '专家' };
@@ -67,39 +67,48 @@ async function(args) {
   const modeLabel = modes[args.mode];
   if (modeLabel) {
     let clicked = false;
-    const toolbarBtns = Array.from(document.querySelectorAll('button'));
-    for (const b of toolbarBtns) {
-      if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
-        b.click(); clicked = true; break;
-      }
-    }
-    if (!clicked) {
-      const moreBtn = toolbarBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
-      if (moreBtn) { moreBtn.click(); await new Promise(r => setTimeout(r, 400)); }
-      for (const b of document.querySelectorAll('dialog button, [role="dialog"] button, button')) {
+
+    // Always click "更多" first — all skill modes live behind it
+    const allBtns = Array.from(document.querySelectorAll('button, div'));
+    const moreBtn = allBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
+    if (moreBtn) {
+      moreBtn.click();
+      await new Promise(r => setTimeout(r, 500));
+      for (const b of document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]')) {
         if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
           b.click(); clicked = true; break;
         }
       }
     }
-    await new Promise(r => setTimeout(r, 200));
+
+    // Fallback: direct toolbar click
+    if (!clicked) {
+      for (const b of document.querySelectorAll('button')) {
+        if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
+          b.click(); clicked = true; break;
+        }
+      }
+    }
+
+    await new Promise(r => setTimeout(r, 800));
   }
 
-  const beforeCount = document.querySelectorAll('[class*="markdown-body"]').length;
+  const beforeCount = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
   const beforeImgs = new Set(Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]')).map(i => i.src));
 
   if (ta) {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, args.message);
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   } else if (ce) {
+    // Slate.js editor: must use beforeinput event (not execCommand)
     ce.focus();
-    // Clear and insert via execCommand (triggers Slate's onInput)
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(ce);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('insertText', false, args.message);
+    ce.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: args.message,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }));
   }
 
   onSubmit();
@@ -107,7 +116,7 @@ async function(args) {
   let lastLen = 0, stable = 0;
   for (let i = 0; i < 40; i++) {
     await new Promise(r => setTimeout(r, 500));
-    const count = document.querySelectorAll('[class*="markdown-body"]').length;
+    const count = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
     if (count <= beforeCount) continue;
     const text = document.querySelectorAll('[class*="markdown-body"]')[count - 1]?.innerText?.trim() || '';
     const imgs = Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]')).map(i => i.src).filter(u => !beforeImgs.has(u));
@@ -116,7 +125,7 @@ async function(args) {
     else if (len > 0) { stable = 0; lastLen = len; }
   }
 
-  const count = document.querySelectorAll('[class*="markdown-body"]').length;
+  const count = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
   if (count > beforeCount) {
     const text = document.querySelectorAll('[class*="markdown-body"]')[count - 1]?.innerText?.trim() || '';
     const imgs = Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]')).map(i => i.src).filter(u => !beforeImgs.has(u));

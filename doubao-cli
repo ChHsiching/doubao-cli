@@ -296,6 +296,8 @@ chat_send_and_poll() {
     ensure_headless
     ensure_daemon || true
 
+    local max_wait=${CHAT_POLL_MAX_WAIT:-120}
+
     local tab_id
     tab_id=$(get_doubao_tab)
     if [ -z "$tab_id" ]; then
@@ -307,6 +309,10 @@ chat_send_and_poll() {
         echo "⚠ 未登录。运行 doubao-cli login 进行登录。"
         exit 1
     fi
+
+    # Always start a new conversation to avoid interrupting previous ones
+    $BB_CMD eval "location.href='https://www.doubao.com/chat/'" --tab "$tab_id" &>/dev/null
+    sleep 3
 
     # Wait for page readiness: textarea must have React fiber
     local fiber_retries=0
@@ -346,10 +352,11 @@ chat_send_and_poll() {
     before_count=$(echo "$send_out" | jq -r '.before_count // 0' 2>/dev/null) || before_count=0
 
     # Phase 2: Poll — 1s intervals, detect completion when content length stabilizes
-    local max_wait=120
     local elapsed=0
     local prev_len=0
     local stale_count=0
+    local done_count=0
+    local stable_needed=${CHAT_POLL_STABLE_COUNT:-1}
     while [ $elapsed -lt $max_wait ]; do
         sleep 1
         elapsed=$((elapsed + 1))
@@ -359,8 +366,9 @@ chat_send_and_poll() {
         cur_len=$(echo "$poll_out" | jq -r '.len // 0' 2>/dev/null) || cur_len=0
         prev_len=$cur_len
 
-        # Detect stale page: if still "waiting" after 15s, refresh and retry
-        if echo "$poll_out" | grep -q '"status": "waiting"'; then
+        # Detect stale page: if still "waiting" after 30s, refresh and retry
+        # Skip for long-running modes (PPT) where waiting is expected during generation
+        if [ "$CHAT_POLL_MODE" != "ppt" ] && echo "$poll_out" | grep -q '"status": "waiting"'; then
             stale_count=$((stale_count + 1))
             if [ $stale_count -ge 30 ]; then
                 # Check for local_ URL (server conversation creation failed)
@@ -386,10 +394,19 @@ chat_send_and_poll() {
             fi
         fi
         if echo "$poll_out" | grep -q '"status": "done"'; then
-            local msg mode refs
+            done_count=$((done_count + 1))
+            if [ $done_count -lt $stable_needed ]; then
+                # Not stable enough yet — keep polling
+                continue
+            fi
+            # Clear spinner line before outputting result
+            printf '\r%s\r' "$(printf ' %.0s' $(seq 1 40))" >&2
+            local msg mode refs ppt_url conv_id
             msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
             mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
             refs=$(echo "$poll_out" | jq -r '.references // empty' 2>/dev/null) || true
+            ppt_url=$(echo "$poll_out" | jq -r '.ppt_url // empty' 2>/dev/null) || true
+            conv_id=$(echo "$poll_out" | jq -r '.conversation_id // empty' 2>/dev/null) || true
 
             if [ "$mode" != "快速" ]; then
                 echo "[$mode 模式]" >&2
@@ -403,14 +420,32 @@ chat_send_and_poll() {
             else
                 echo "$poll_out"
             fi
+
+            # Show conversation link for PPT or when content indicates completion
+            if [ -n "$conv_id" ] && [ "$CHAT_POLL_MODE" = "ppt" ]; then
+                echo "" >&2
+                echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
+                if [ -n "$ppt_url" ]; then
+                    echo "PPT 预览: $ppt_url" >&2
+                fi
+                echo "  PPT 文件可能仍在后台生成，请在浏览器中打开对话链接查看/下载" >&2
+            elif [ -n "$conv_id" ] && echo "$msg" | grep -qi '制作完成\|已经为您'; then
+                echo "" >&2
+                echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
+                if [ -n "$ppt_url" ]; then
+                    echo "PPT 预览: $ppt_url" >&2
+                fi
+            fi
             return 0
+        else
+            # Content still changing — reset done counter
+            done_count=0
         fi
-        # Show progress every 3 seconds
-        if [ $((elapsed % 6)) -eq 0 ]; then
-            printf "." >&2
-        fi
+        # Spinner + elapsed timer
+        local spinner_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+        printf '\r  %s 等待回复中... %ds' "${spinner_chars[$((elapsed % 10))]}" "$elapsed" >&2
     done
-    echo ""
+    printf '\n' >&2
     echo "⚠ 等待超时（${max_wait}s）。用 doubao-cli last 获取回复。"
     return 1
 }
@@ -735,6 +770,15 @@ case "$cmd" in
         done
         MSG="${MSG_ARGS[*]}"
         [ -z "$MSG" ] && { echo "用法: doubao-cli $cmd [--to-english|--to-chinese] <内容>"; exit 1; }
+        # translate requires --to-english or --to-chinese
+        if [ "$cmd" = "translate" ] && [ -z "$TRANSLATE_TARGET" ]; then
+            echo "错误: 翻译模式需要指定目标语言"
+            echo "  --to-english    翻译为英文"
+            echo "  --to-chinese    翻译为中文"
+            echo ""
+            echo "示例: doubao-cli translate --to-english 你好世界"
+            exit 1
+        fi
         declare -A MODE_MAP=(
             [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
             [image]=image [video]=video [music]=music
@@ -743,6 +787,9 @@ case "$cmd" in
         # Pass translate_target as extra arg for the adapter
         if [ "$cmd" = "translate" ] && [ -n "$TRANSLATE_TARGET" ]; then
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
+        elif [ "$cmd" = "ppt" ]; then
+            # PPT generation takes 10-30 minutes, use extended timeout
+            CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=ppt chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         else
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         fi

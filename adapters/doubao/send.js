@@ -18,9 +18,9 @@ async function(args) {
   }
 
   const modes = {
-    chat: null, writing: '写作', ppt: 'PPT生成', coding: '编程',
+    chat: null, writing: '帮我写作', ppt: 'PPT 生成', coding: '编程',
     image: '图像生成', translate: '翻译', research: '深入研究',
-    video: '视频生成', music: '音乐生成', podcast: 'AI播客',
+    video: '视频生成', music: '音乐生成', podcast: 'AI 播客',
     meeting: '记录会议', math: '解题答疑', data: '数据分析', super: '超能模式',
   };
   // Modes that use Slate.js contenteditable instead of textarea
@@ -83,90 +83,50 @@ async function(args) {
   }
 
   // ── Mode switching ──
-  // Skip UI switch for modes with Slate.js ce that can't be submitted from greeting page
+  // Skip UI switch for modes handled as normal textarea chat
   const skipUISwitch = new Set(['编程', '图像生成']);
   const modeLabel = modes[args.mode];
+  const isSkillMode = skillModes.has(args.mode);
+
+  // Pre-fill textarea before mode switch so the message state is populated
+  if (isSkillMode && ta && inputEl.tagName === 'TEXTAREA') {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, args.message);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 200));
+  }
+
   if (modeLabel && !skipUISwitch.has(modeLabel)) {
-    const skillTypeMap = {
-      '写作': 1, 'PPT生成': 2, '编程': 16, '图像生成': 4,
-      '翻译': 5, '深入研究': 6, '视频生成': 7, '音乐生成': 8,
-      'AI播客': 9, '记录会议': 10, '解题答疑': 11, '数据分析': 12, '超能模式': 13
-    };
-    const targetSkillType = skillTypeMap[modeLabel];
     let modeSwitched = false;
 
-    // Strategy 1: Click mode button directly
-    const candidates = Array.from(document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]'));
-    for (const b of candidates) {
-      if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
-        b.click();
-        modeSwitched = true;
-        break;
+    // Always click "更多" first — all skill modes live behind it
+    const allBtns = Array.from(document.querySelectorAll('button, div'));
+    const moreBtn = allBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
+    if (moreBtn) {
+      moreBtn.click();
+      await new Promise(r => setTimeout(r, 500));
+      // Search in the expanded popup/panel by exact text match
+      for (const b of document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]')) {
+        if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
+          b.click();
+          modeSwitched = true;
+          break;
+        }
       }
     }
 
-    // Strategy 2: Radix Popover trigger
+    // Fallback: direct toolbar click (if button is already visible)
     if (!modeSwitched) {
-      const modeTriggers = Array.from(document.querySelectorAll('[data-value]'));
-      for (const trigger of modeTriggers) {
-        const txt = trigger.innerText?.trim() || '';
-        if (!txt || trigger.getBoundingClientRect().width === 0) continue;
-        if (/^(快速|思考|专家)/.test(txt)) continue;
-        trigger.click();
-        await new Promise(res => setTimeout(res, 300));
-        const popups = document.querySelectorAll('[data-radix-popper-content-wrapper] [data-value], [role=listbox] div, [role=menu] div');
-        for (const item of popups) {
-          if (item.innerText?.trim() === modeLabel) {
-            const fk = Object.keys(item).find(k => k.startsWith('__reactFiber'));
-            if (fk) {
-              const onClick = item[fk]?.memoizedProps?.onClick;
-              if (typeof onClick === 'function') {
-                onClick({currentTarget: item, target: item, preventDefault: ()=>{}, stopPropagation: ()=>{}});
-                modeSwitched = true; break;
-              }
-            }
-          }
-        }
-        if (modeSwitched) break;
-      }
-    }
-
-    // Strategy 3: "更多" button
-    if (!modeSwitched) {
-      const moreBtn = Array.from(document.querySelectorAll('button, div')).find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
-      if (moreBtn) {
-        moreBtn.click();
-        await new Promise(r => setTimeout(r, 400));
-        for (const b of document.querySelectorAll('button, div[class*=cursor-pointer]')) {
-          if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
-            b.click();
-            modeSwitched = true; break;
-          }
+      for (const b of document.querySelectorAll('button')) {
+        if (b.innerText?.trim() === modeLabel && b.getBoundingClientRect().width > 0) {
+          b.click();
+          modeSwitched = true;
+          break;
         }
       }
     }
 
-    // Wait for React state — poll for activeSkillType and mode-specific UI
-    if (targetSkillType !== undefined) {
-      for (let attempt = 0; attempt < 30; attempt++) {
-        await new Promise(res => setTimeout(res, 100));
-        const ceCheck = document.querySelector('[contenteditable="true"]');
-        const taCheck = document.querySelector('textarea');
-        const check = (ceCheck && ceCheck.getBoundingClientRect().height > 0) ? ceCheck : taCheck;
-        if (check) {
-          const fk = Object.keys(check).find(k => k.startsWith('__reactFiber'));
-          if (fk) {
-            let f = check[fk];
-            for (let j = 0; j < 40 && f; j++) {
-              const p = f.memoizedProps || {};
-              if (p.activeSkillType === targetSkillType) { attempt = 999; break; }
-              if (p.skill && typeof p.skill === 'object' && p.skill.skill_type === targetSkillType) { attempt = 999; break; }
-              f = f.return;
-            }
-          }
-        }
-      }
-    }
+    // Wait for React state to update the input element
+    await new Promise(r => setTimeout(r, 800));
   }
 
   // ── Translate: select target language ──
@@ -207,6 +167,8 @@ async function(args) {
   }
 
   // ── Re-discover input after mode switch ──
+  // Wait for React to fully render the new input element
+  await new Promise(r => setTimeout(r, 300));
   const ta2 = document.querySelector('textarea');
   const ce2 = document.querySelector('[contenteditable="true"]');
   let submitEl = null;
@@ -216,21 +178,26 @@ async function(args) {
   else if (ta2) submitEl = ta2;
   else submitEl = ta || ce;
 
-  const isSkillMode = skillModes.has(args.mode);
-  const beforeCount = document.querySelectorAll('[class*="markdown-body"]').length;
+  const beforeCount = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
 
   // ── Set value ──
-  if (submitEl.tagName === 'TEXTAREA') {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(submitEl, args.message);
-    submitEl.dispatchEvent(new Event('input', { bubbles: true }));
-  } else {
-    submitEl.focus();
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(submitEl);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('insertText', false, args.message);
+  // For skill modes, message was pre-filled into textarea before mode switch.
+  // React state already has the message — skip re-typing to avoid duplication.
+  if (!isSkillMode) {
+    if (submitEl.tagName === 'TEXTAREA') {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(submitEl, args.message);
+      submitEl.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // Slate.js editor: use beforeinput event
+      submitEl.focus();
+      submitEl.dispatchEvent(new InputEvent('beforeinput', {
+        inputType: 'insertText',
+        data: args.message,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }));
+    }
   }
 
   // ── Submit ──

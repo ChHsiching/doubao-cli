@@ -182,6 +182,14 @@ async function main(): Promise<void> {
             console.log(`Usage: doubao-cli ${cmd} [--to-english|--to-chinese] <content>`);
             process.exit(1);
           }
+          if (cmd === "translate" && !translateTarget) {
+            console.log("Error: translate requires a target language");
+            console.log("  --to-english    Translate to English");
+            console.log("  --to-chinese    Translate to Chinese");
+            console.log("");
+            console.log("Example: doubao-cli translate --to-english 你好世界");
+            process.exit(1);
+          }
           await chatSendAndPoll(msg, cmd, "", translateTarget);
         } else {
           // Treat as quick chat message
