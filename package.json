@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "豆包 AI 命令行工具 — 通过 bb-browser CLI 化豆包 Web 端所有功能",
   "bin": {
-    "doubao-cli": "./doubao"
+    "doubao-cli": "doubao"
   },
   "scripts": {
     "postinstall": "bash install.sh",
@@ -19,7 +19,13 @@
   "dependencies": {
     "bb-browser": ">=0.11.0"
   },
-  "keywords": ["doubao", "cli", "bb-browser", "ai", "chatbot"],
+  "keywords": [
+    "doubao",
+    "cli",
+    "bb-browser",
+    "ai",
+    "chatbot"
+  ],
   "license": "CC-BY-NC-4.0",
   "engines": {
     "node": ">=18"
