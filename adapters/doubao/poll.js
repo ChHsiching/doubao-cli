@@ -91,6 +91,22 @@ function(args) {
       }
     }
 
+    // Check for generated images (byteimg.com/ocean-cloud)
+    const genImgs = Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]'))
+      .map(i => i.src)
+      .filter(u => u && u.includes('generated'));
+    if (genImgs.length > 0) {
+      r.images = genImgs;
+    }
+
+    // Check for document component (writing/super mode)
+    const docLink = Array.from(document.querySelectorAll('a[href*="docs"]')).find(
+      a => a.href && a.getBoundingClientRect().height > 0
+    );
+    if (docLink) {
+      r.doc_url = docLink.href;
+    }
+
     return r;
   }
 

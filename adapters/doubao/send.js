@@ -5,7 +5,7 @@
   "domain": "www.doubao.com",
   "args": {
     "message": {"required": true, "description": "消息内容"},
-    "mode": {"required": false, "description": "模式"},
+    "mode": {"required": false, "description": "模式: chat, writing, ppt, coding, image, translate, video, music, podcast, solve, data, super"},
     "thinking": {"required": false, "description": "思考深度: quick/think/expert"},
     "translate_target": {"required": false, "description": "翻译目标语言: english/chinese"}
   },
@@ -21,11 +21,10 @@ async function(args) {
     chat: null, writing: '帮我写作', ppt: 'PPT 生成', coding: '编程',
     image: '图像生成', translate: '翻译',
     video: '视频生成', music: '音乐生成', podcast: 'AI 播客',
-    math: '解题答疑', data: '数据分析', super: '超能模式',
+    solve: '解题答疑', data: '数据分析', super: '超能模式',
   };
-  // Modes that use Slate.js contenteditable instead of textarea
-  // coding/image modes skip UI switch entirely, handled as normal textarea chat
-  const skillModes = new Set(['translate', 'math', 'writing', 'ppt', 'video', 'music', 'podcast', 'data', 'super']);
+  // Modes that need UI mode switch + special submit (all go through "更多" popup)
+  const skillModes = new Set(['translate', 'solve', 'writing', 'ppt', 'coding', 'image', 'video', 'music', 'podcast', 'data', 'super']);
 
   const ta = document.querySelector('textarea');
   const ce = document.querySelector('[contenteditable="true"]');
@@ -83,8 +82,6 @@ async function(args) {
   }
 
   // ── Mode switching ──
-  // Skip UI switch for modes handled as normal textarea chat
-  const skipUISwitch = new Set(['编程', '图像生成']);
   const modeLabel = modes[args.mode];
   const isSkillMode = skillModes.has(args.mode);
 
@@ -95,7 +92,7 @@ async function(args) {
     await new Promise(r => setTimeout(r, 200));
   }
 
-  if (modeLabel && !skipUISwitch.has(modeLabel)) {
+  if (modeLabel) {
     let modeSwitched = false;
 
     // Always click "更多" first — all skill modes live behind it

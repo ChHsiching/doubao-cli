@@ -5,6 +5,12 @@
   "domain": "www.doubao.com",
   "args": {
     "message": {"required": true, "description": "消息内容"},
+    "mode": {"required": false, "description": "模式: chat, writing, ppt, coding, image, translate, video, music, podcast, solve, data, super"},
+    "thinking": {"required": false, "description": "思考深度: quick(快速), think(思考), expert(专家)"}
+  },
+  "domain": "www.doubao.com",
+  "args": {
+    "message": {"required": true, "description": "消息内容"},
     "mode": {"required": false, "description": "模式: chat, writing, ppt, coding, image, translate, video, music, podcast, math, data, super"},
     "thinking": {"required": false, "description": "思考深度: quick(快速), think(思考), expert(专家)"}
   },
@@ -49,7 +55,7 @@ async function(args) {
     chat: null, writing: '帮我写作', ppt: 'PPT 生成', coding: '编程',
     image: '图像生成', translate: '翻译',
     video: '视频生成', music: '音乐生成', podcast: 'AI 播客',
-    math: '解题答疑', data: '数据分析', super: '超能模式',
+    solve: '解题答疑', data: '数据分析', super: '超能模式',
   };
   const depths = { quick: '快速', think: '思考', expert: '专家' };
 
