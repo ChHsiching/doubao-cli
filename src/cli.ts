@@ -18,7 +18,6 @@ const MODE_COMMANDS = new Set([
   "writing",
   "ppt",
   "coding",
-  "research",
   "video",
   "music",
   "podcast",
@@ -53,7 +52,6 @@ Mode commands:
   doubao-cli math 'solve equation'      Math
   doubao-cli image 'a cat'              Image
   doubao-cli ppt 'AI history'           PPT
-  doubao-cli research '...'             Research
   doubao-cli writing '...'              Writing
   doubao-cli super '...'                Super mode
   (also: video music podcast meeting data)

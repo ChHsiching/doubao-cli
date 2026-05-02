@@ -94,7 +94,6 @@ doubao-cli help                              # All commands
 | `doubao-cli coding <prompt>` | Code assistant |
 | `doubao-cli math <problem>` | Math solver |
 | `doubao-cli writing <prompt>` | Writing assistant |
-| `doubao-cli research <topic>` | Deep research |
 | `doubao-cli ppt <topic>` | PPT generation |
 | `doubao-cli login` | Login (interactive) |
 | `doubao-cli login --web` | Login (browser) |
