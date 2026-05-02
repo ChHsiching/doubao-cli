@@ -366,8 +366,9 @@ chat_send_and_poll() {
         cur_len=$(echo "$poll_out" | jq -r '.len // 0' 2>/dev/null) || cur_len=0
         prev_len=$cur_len
 
-        # Detect stale page: if still "waiting" after 15s, refresh and retry
-        if echo "$poll_out" | grep -q '"status": "waiting"'; then
+        # Detect stale page: if still "waiting" after 30s, refresh and retry
+        # Skip for long-running modes (PPT) where waiting is expected during generation
+        if [ "$CHAT_POLL_MODE" != "ppt" ] && echo "$poll_out" | grep -q '"status": "waiting"'; then
             stale_count=$((stale_count + 1))
             if [ $stale_count -ge 30 ]; then
                 # Check for local_ URL (server conversation creation failed)
