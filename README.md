@@ -26,17 +26,17 @@ This automatically installs `bb-browser` and copies adapters into place.
 
 ```bash
 # Phone + verification code (recommended)
-./doubao login 13800138000           # Send code to phone
-./doubao login 13800138000 123456    # Login with code
+./doubao-cli login 13800138000           # Send code to phone
+./doubao-cli login 13800138000 123456    # Login with code
 
 # Or interactive mode — prompts for phone and code
-./doubao login
+./doubao-cli login
 ```
 
 If phone login is unavailable, use browser login as a fallback:
 
 ```bash
-./doubao login --web
+./doubao-cli login --web
 ```
 
 A Chrome window opens for manual login. After completing login, press Enter in the terminal.
@@ -44,39 +44,39 @@ A Chrome window opens for manual login. After completing login, press Enter in t
 After login, verify with:
 
 ```bash
-./doubao account
+./doubao-cli account
 ```
 
 ### Usage
 
 ```bash
-./doubao "hello"                          # Quick chat
-./doubao image "a cat wearing sunglasses"  # Generate image
-./doubao translate --to-english "你好"     # Translate
-./doubao coding "write quicksort"          # Coding mode
-./doubao math "solve x^2 + 3x - 4 = 0"   # Math mode
-./doubao help                              # All commands
+./doubao-cli "hello"                          # Quick chat
+./doubao-cli image "a cat wearing sunglasses"  # Generate image
+./doubao-cli translate --to-english "你好"     # Translate
+./doubao-cli coding "write quicksort"          # Coding mode
+./doubao-cli math "solve x^2 + 3x - 4 = 0"   # Math mode
+./doubao-cli help                              # All commands
 ```
 
 ## Available Commands
 
 | Command | Description |
 |---------|-------------|
-| `doubao "message"` | Send a message |
-| `doubao image <desc>` | AI image generation |
-| `doubao translate <text>` | Translation |
-| `doubao coding <prompt>` | Code assistant |
-| `doubao math <problem>` | Math solver |
-| `doubao writing <prompt>` | Writing assistant |
-| `doubao research <topic>` | Deep research |
-| `doubao ppt <topic>` | PPT generation |
-| `doubao login` | Login (interactive) |
-| `doubao login --web` | Login (browser) |
-| `doubao list` | List conversations |
-| `doubao new` | New conversation |
-| `doubao last` | Last response |
-| `doubao retry` | Regenerate response |
-| `doubao account` | Account info |
+| `doubao-cli "message"` | Send a message |
+| `doubao-cli image <desc>` | AI image generation |
+| `doubao-cli translate <text>` | Translation |
+| `doubao-cli coding <prompt>` | Code assistant |
+| `doubao-cli math <problem>` | Math solver |
+| `doubao-cli writing <prompt>` | Writing assistant |
+| `doubao-cli research <topic>` | Deep research |
+| `doubao-cli ppt <topic>` | PPT generation |
+| `doubao-cli login` | Login (interactive) |
+| `doubao-cli login --web` | Login (browser) |
+| `doubao-cli list` | List conversations |
+| `doubao-cli new` | New conversation |
+| `doubao-cli last` | Last response |
+| `doubao-cli retry` | Regenerate response |
+| `doubao-cli account` | Account info |
 
 ## How It Works
 

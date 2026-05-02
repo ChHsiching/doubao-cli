@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # doubao — 豆包 AI 命令行工具
-# 用法: doubao <command> [args...]
+# 用法: doubao-cli <command> [args...]
 set -euo pipefail
 
 # ── Config ──
@@ -168,7 +168,7 @@ do_image() {
     local tab_id
     tab_id=$(get_doubao_tab)
     if [ -z "$tab_id" ]; then echo "错误: 无法打开豆包页面"; exit 1; fi
-    if ! check_login "$tab_id"; then echo "⚠ 未登录。运行 doubao login 进行登录。"; exit 1; fi
+    if ! check_login "$tab_id"; then echo "⚠ 未登录。运行 doubao-cli login 进行登录。"; exit 1; fi
 
     local cur_url
     cur_url=$($BB_CMD eval "location.href" --tab "$tab_id" 2>/dev/null) || true
@@ -284,7 +284,7 @@ do_image() {
         [ $((elapsed % 6)) -eq 0 ] && printf "." >&2
     done
     echo ""
-    echo "⚠ 等待超时（${max_wait}s）。用 doubao last 获取回复。"
+    echo "⚠ 等待超时（${max_wait}s）。用 doubao-cli last 获取回复。"
     return 1
 }
 
@@ -304,7 +304,7 @@ chat_send_and_poll() {
     fi
 
     if ! check_login "$tab_id"; then
-        echo "⚠ 未登录。运行 doubao login 进行登录。"
+        echo "⚠ 未登录。运行 doubao-cli login 进行登录。"
         exit 1
     fi
 
@@ -411,7 +411,7 @@ chat_send_and_poll() {
         fi
     done
     echo ""
-    echo "⚠ 等待超时（${max_wait}s）。用 doubao last 获取回复。"
+    echo "⚠ 等待超时（${max_wait}s）。用 doubao-cli last 获取回复。"
     return 1
 }
 
@@ -474,10 +474,10 @@ do_login_web() {
         sleep 2
     fi
     if [ -n "$tab_id" ] && check_login "$tab_id"; then
-        echo "✓ 登录成功！运行 doubao account 查看账户信息。"
+        echo "✓ 登录成功！运行 doubao-cli account 查看账户信息。"
     else
         echo "⚠ 未能确认登录状态。请确认已在浏览器中完成登录。"
-        echo "  运行 doubao account 验证。"
+        echo "  运行 doubao-cli account 验证。"
     fi
     echo "  浏览器可以安全关闭。"
 }
@@ -515,7 +515,7 @@ do_login_interactive() {
     send_result=$($BB_CMD site doubao/login-send-code --phone "$phone" --tab "$tab_id" 2>&1)
     if echo "$send_result" | grep -q '"error"'; then
         echo "发送失败: $send_result"
-        echo "可以尝试: doubao login --web"
+        echo "可以尝试: doubao-cli login --web"
         return 1
     fi
     echo "验证码已发送到 $phone"
@@ -549,7 +549,7 @@ do_login_cli() {
     local verify_result=""
 
     if [ -z "$phone" ]; then
-        echo "用法: doubao login <手机号> [验证码]"
+        echo "用法: doubao-cli login <手机号> [验证码]"
         echo "      doubao login <手机号>  # 仅发送验证码"
         echo "      doubao login <手机号> <验证码>  # 用已收到的验证码登录"
         return 1
@@ -582,7 +582,7 @@ do_login_cli() {
                 return 0
             fi
         done
-        echo "✗ 验证码登录失败，可以尝试: doubao login $phone"
+        echo "✗ 验证码登录失败，可以尝试: doubao-cli login $phone"
         return 1
     fi
 
@@ -591,16 +591,16 @@ do_login_cli() {
     send_result=$($BB_CMD site doubao/login-send-code --phone "$phone" --tab "$tab_id" 2>&1)
     if echo "$send_result" | grep -q '"error"'; then
         echo "发送失败: $send_result"
-        echo "可以尝试: doubao login --web"
+        echo "可以尝试: doubao-cli login --web"
         return 1
     fi
     if echo "$send_result" | grep -q '"code_input_ready"'; then
         echo "验证码输入界面已打开。"
-        echo "请输入验证码: doubao login $phone <验证码>"
+        echo "请输入验证码: doubao-cli login $phone <验证码>"
         return 0
     fi
     echo "验证码已发送到 $phone"
-    echo "请输入验证码: doubao login $phone <验证码>"
+    echo "请输入验证码: doubao-cli login $phone <验证码>"
     return 0
 }
 
@@ -645,46 +645,46 @@ shift 2>/dev/null || true
 
 case "$cmd" in
     help|--help|-h)
-        echo "doubao — 豆包 AI 命令行工具"
+        echo "doubao-cli — 豆包 AI 命令行工具"
         echo ""
-        echo "用法: doubao <命令> [参数...]"
+        echo "用法: doubao-cli <命令> [参数...]"
         echo ""
         echo "登录:"
-        echo "  doubao login                    交互式登录（手机号+验证码）"
-        echo "  doubao login <手机号>           发送验证码"
-        echo "  doubao login <手机号> <验证码>  发送验证码并登录"
-        echo "  doubao login --web              打开浏览器手动登录"
-        echo "  doubao logout                   退出登录"
+        echo "  doubao-cli login                    交互式登录（手机号+验证码）"
+        echo "  doubao-cli login <手机号>           发送验证码"
+        echo "  doubao-cli login <手机号> <验证码>  发送验证码并登录"
+        echo "  doubao-cli login --web              打开浏览器手动登录"
+        echo "  doubao-cli logout                   退出登录"
         echo ""
         echo "聊天:"
-        echo "  doubao '你好'                   发消息（自动检测登录）"
-        echo "  doubao chat --mode coding '写快排'"
-        echo "  doubao chat --thinking expert '...'"
+        echo "  doubao-cli '你好'                   发消息（自动检测登录）"
+        echo "  doubao-cli chat --mode coding '写快排'"
+        echo "  doubao-cli chat --thinking expert '...'"
         echo ""
         echo "功能模式:"
-        echo "  doubao translate '你好'                      翻译（自动检测）"
-        echo "  doubao translate --to-english '你好'          中译英"
-        echo "  doubao translate --to-chinese 'Hello'         英译中"
-        echo "  doubao coding '写快排'     编程"
-        echo "  doubao math '解方程'       数学"
-        echo "  doubao image '猫'          图像"
-        echo "  doubao ppt 'AI发展'        PPT"
-        echo "  doubao research '...'      研究"
-        echo "  doubao writing '...'       写作"
-        echo "  doubao super '...'         超能"
+        echo "  doubao-cli translate '你好'                      翻译（自动检测）"
+        echo "  doubao-cli translate --to-english '你好'          中译英"
+        echo "  doubao-cli translate --to-chinese 'Hello'         英译中"
+        echo "  doubao-cli coding '写快排'     编程"
+        echo "  doubao-cli math '解方程'       数学"
+        echo "  doubao-cli image '猫'          图像"
+        echo "  doubao-cli ppt 'AI发展'        PPT"
+        echo "  doubao-cli research '...'      研究"
+        echo "  doubao-cli writing '...'       写作"
+        echo "  doubao-cli super '...'         超能"
         echo "  (还有: video music podcast meeting data)"
         echo ""
         echo "会话管理:"
-        echo "  doubao list                 查看会话列表"
-        echo "  doubao load <ID>            加载历史会话"
-        echo "  doubao new                  新建会话"
-        echo "  doubao last                 最新回复"
-        echo "  doubao retry                重新生成最新回复"
-        echo "  doubao delete <ID>          删除会话"
+        echo "  doubao-cli list                 查看会话列表"
+        echo "  doubao-cli load <ID>            加载历史会话"
+        echo "  doubao-cli new                  新建会话"
+        echo "  doubao-cli last                 最新回复"
+        echo "  doubao-cli retry                重新生成最新回复"
+        echo "  doubao-cli delete <ID>          删除会话"
         echo ""
         echo "系统:"
-        echo "  doubao account              账户信息"
-        echo "  doubao daemon               daemon 状态"
+        echo "  doubao-cli account              账户信息"
+        echo "  doubao-cli daemon               daemon 状态"
         echo ""
         echo "思考深度: quick think expert"
         ;;
@@ -713,14 +713,14 @@ case "$cmd" in
             esac
         done
         MSG="${MSG_ARGS[*]}"
-        [ -z "$MSG" ] && { echo "用法: doubao chat <消息>"; exit 1; }
+        [ -z "$MSG" ] && { echo "用法: doubao-cli chat <消息>"; exit 1; }
         ARGS=("$MSG" "${MODE:-}" "${THINKING:-}")
         chat_send_and_poll "${ARGS[@]}"
         ;;
 
     image)
         MSG="${*:-}"
-        [ -z "$MSG" ] && { echo "用法: doubao image <图片描述>"; exit 1; }
+        [ -z "$MSG" ] && { echo "用法: doubao-cli image <图片描述>"; exit 1; }
         do_image "$MSG"
         ;;
 
@@ -735,7 +735,7 @@ case "$cmd" in
             esac
         done
         MSG="${MSG_ARGS[*]}"
-        [ -z "$MSG" ] && { echo "用法: doubao $cmd [--to-english|--to-chinese] <内容>"; exit 1; }
+        [ -z "$MSG" ] && { echo "用法: doubao-cli $cmd [--to-english|--to-chinese] <内容>"; exit 1; }
         declare -A MODE_MAP=(
             [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
             [image]=image [research]=research [video]=video [music]=music
@@ -830,9 +830,9 @@ case "$cmd" in
         elif echo "$acct_out" | grep -q '"error"'; then
             err=$(echo "$acct_out" | jq -r '.error // "unknown"' 2>/dev/null) || err="$acct_out"
             echo "⚠ 账户查询失败: $err"
-            echo "  运行 doubao login --web 进行登录"
+            echo "  运行 doubao-cli login --web 进行登录"
         else
-            echo "⚠ 未登录。运行 doubao login 进行登录。"
+            echo "⚠ 未登录。运行 doubao-cli login 进行登录。"
         fi
         ;;
 
@@ -866,7 +866,7 @@ case "$cmd" in
         ;;
 
     delete)
-        [ -z "${1:-}" ] && { echo "用法: doubao delete <会话ID>"; exit 1; }
+        [ -z "${1:-}" ] && { echo "用法: doubao-cli delete <会话ID>"; exit 1; }
         ensure_headless; ensure_daemon || true
         $BB_CMD site doubao/delete "$1"
         ;;
@@ -886,7 +886,7 @@ case "$cmd" in
             esac
         done
         MSG="${MSG_ARGS[*]}"
-        [ -z "$MSG" ] && { echo "用法: doubao [选项] <消息>"; exit 1; }
+        [ -z "$MSG" ] && { echo "用法: doubao-cli [选项] <消息>"; exit 1; }
         ARGS=("$MSG" "${MODE:-}" "${THINKING:-}")
         chat_send_and_poll "${ARGS[@]}"
         ;;
