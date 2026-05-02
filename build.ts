@@ -27,14 +27,15 @@ async function generateChecksums(dir: string): Promise<void> {
 
 async function build() {
   const fs = await import("fs");
+  const path = await import("path");
   fs.mkdirSync("dist", { recursive: true });
 
   for (const { target, suffix } of targets) {
+    const outfile = path.join("dist", `doubao-cli-${suffix}`);
     console.log(`Building for ${suffix}...`);
     const result = await Bun.build({
       entrypoints: ["src/cli.ts"],
       outdir: "dist",
-      naming: `[name]-${suffix}`,
       target,
       compile: true,
       minify: true,
@@ -48,7 +49,14 @@ async function build() {
       process.exit(1);
     }
 
-    console.log(`  -> ${result.outputs[0].path} (${(result.outputs[0].size / 1024 / 1024).toFixed(1)}MB)`);
+    // Rename to correct name (Bun compile ignores naming option)
+    const built = result.outputs[0].path;
+    if (built !== outfile) {
+      fs.renameSync(built, outfile);
+    }
+
+    const size = fs.statSync(outfile).size;
+    console.log(`  -> ${outfile} (${(size / 1024 / 1024).toFixed(1)}MB)`);
   }
 
   await generateChecksums("dist");
