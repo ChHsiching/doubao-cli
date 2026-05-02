@@ -46,9 +46,9 @@ async function(args) {
   if (!onSubmit) return { error: 'onSubmit not found' };
 
   const modes = {
-    chat: null, writing: '写作', ppt: 'PPT生成', coding: '编程',
+    chat: null, writing: '帮我写作', ppt: 'PPT生成', coding: '编程',
     image: '图像生成', translate: '翻译', research: '深入研究',
-    video: '视频生成', music: '音乐生成', podcast: 'AI播客',
+    video: '视频生成', music: '音乐生成', podcast: 'AI 播客',
     meeting: '记录会议', math: '解题答疑', data: '数据分析', super: '超能模式',
   };
   const depths = { quick: '快速', think: '思考', expert: '专家' };
