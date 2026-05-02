@@ -51,13 +51,20 @@ done
 echo -e "${GREEN}${ADAPTER_COUNT} 个适配器${RESET}"
 
 # 3. Verify
+# Detect if installed globally (doubao is in PATH) or locally (use absolute path)
+if command -v doubao &>/dev/null; then
+    DOUBAO_CMD="doubao"
+else
+    DOUBAO_CMD="$SCRIPT_DIR/doubao"
+fi
+
 echo ""
 echo -e "${BOLD}${GREEN}安装完成！${RESET}"
 echo ""
 echo "快速开始:"
-echo "  $SCRIPT_DIR/doubao open          # 打开豆包（首次需要登录）"
-echo "  $SCRIPT_DIR/doubao chat '你好'   # 开始聊天"
-echo "  $SCRIPT_DIR/doubao help          # 查看所有命令"
+echo "  $DOUBAO_CMD login         # 首次登录"
+echo "  $DOUBAO_CMD '你好'        # 开始聊天"
+echo "  $DOUBAO_CMD help          # 查看所有命令"
 echo ""
 echo "注意: bb-browser 会自动启动 Chrome (后台运行，不阻塞终端)。"
 echo "如果系统没有 Chrome，请安装 Chromium 或 Google Chrome。"
