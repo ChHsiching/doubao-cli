@@ -86,6 +86,15 @@ async function(args) {
   // Skip UI switch for modes handled as normal textarea chat
   const skipUISwitch = new Set(['编程', '图像生成']);
   const modeLabel = modes[args.mode];
+  const isSkillMode = skillModes.has(args.mode);
+
+  // Pre-fill textarea before mode switch so the message state is populated
+  if (isSkillMode && ta && inputEl.tagName === 'TEXTAREA') {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, args.message);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 200));
+  }
+
   if (modeLabel && !skipUISwitch.has(modeLabel)) {
     let modeSwitched = false;
 
@@ -169,23 +178,26 @@ async function(args) {
   else if (ta2) submitEl = ta2;
   else submitEl = ta || ce;
 
-  const isSkillMode = skillModes.has(args.mode);
   const beforeCount = document.querySelectorAll('[class*="markdown-body"]').length;
 
   // ── Set value ──
-  if (submitEl.tagName === 'TEXTAREA') {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(submitEl, args.message);
-    submitEl.dispatchEvent(new Event('input', { bubbles: true }));
-  } else {
-    // Slate.js editor: must use beforeinput event (not execCommand)
-    submitEl.focus();
-    submitEl.dispatchEvent(new InputEvent('beforeinput', {
-      inputType: 'insertText',
-      data: args.message,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-    }));
+  // For skill modes, message was pre-filled into textarea before mode switch.
+  // React state already has the message — skip re-typing to avoid duplication.
+  if (!isSkillMode) {
+    if (submitEl.tagName === 'TEXTAREA') {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(submitEl, args.message);
+      submitEl.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // Slate.js editor: use beforeinput event
+      submitEl.focus();
+      submitEl.dispatchEvent(new InputEvent('beforeinput', {
+        inputType: 'insertText',
+        data: args.message,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }));
+    }
   }
 
   // ── Submit ──
