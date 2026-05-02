@@ -29,6 +29,14 @@ function(args) {
   const len = text.length;
 
   if (len > 0 && len === prevLen) {
+    // PPT: if completion text appears but iframe not yet loaded, wait
+    if (/制作完成|已经为您.*完成/.test(text)) {
+      const hasIframe = Array.from(document.querySelectorAll('iframe')).some(
+        f => f.src && f.src.includes('ccm-slides') && f.getBoundingClientRect().height > 0
+      );
+      if (!hasIframe) return { status: 'streaming', len, prevLen, preview: text.substring(0, 200), hint: 'waiting for PPT iframe' };
+    }
+
     const thinkBtn = Array.from(document.querySelectorAll('button'))
       .find(b => /^(快速|思考|专家)/.test(b.innerText?.trim()) && b.querySelector('button') && b.getBoundingClientRect().width > 0);
     const thinkingMode = thinkBtn?.innerText?.trim() || '快速';

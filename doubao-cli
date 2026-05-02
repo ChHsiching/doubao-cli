@@ -387,10 +387,12 @@ chat_send_and_poll() {
             fi
         fi
         if echo "$poll_out" | grep -q '"status": "done"'; then
-            local msg mode refs
+            local msg mode refs ppt_url conv_id
             msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
             mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
             refs=$(echo "$poll_out" | jq -r '.references // empty' 2>/dev/null) || true
+            ppt_url=$(echo "$poll_out" | jq -r '.ppt_url // empty' 2>/dev/null) || true
+            conv_id=$(echo "$poll_out" | jq -r '.conversation_id // empty' 2>/dev/null) || true
 
             if [ "$mode" != "快速" ]; then
                 echo "[$mode 模式]" >&2
@@ -403,6 +405,16 @@ chat_send_and_poll() {
                 echo "$msg"
             else
                 echo "$poll_out"
+            fi
+
+            # PPT: show conversation link for viewing/downloading
+            if [ -n "$conv_id" ] && echo "$msg" | grep -qi '制作完成\|已经为您'; then
+                echo "" >&2
+                echo "📋 对话链接: https://www.doubao.com/chat/$conv_id" >&2
+                if [ -n "$ppt_url" ]; then
+                    echo "📋 PPT 预览: $ppt_url" >&2
+                fi
+                echo "  请在浏览器中打开对话链接查看/下载 PPT" >&2
             fi
             return 0
         fi
