@@ -669,7 +669,6 @@ case "$cmd" in
         echo "  doubao-cli math '解方程'       数学"
         echo "  doubao-cli image '猫'          图像"
         echo "  doubao-cli ppt 'AI发展'        PPT"
-        echo "  doubao-cli research '...'      研究"
         echo "  doubao-cli writing '...'       写作"
         echo "  doubao-cli super '...'         超能"
         echo "  (还有: video music podcast meeting data)"
@@ -724,7 +723,7 @@ case "$cmd" in
         do_image "$MSG"
         ;;
 
-    translate|writing|ppt|coding|research|video|music|podcast|meeting|math|data|super)
+    translate|writing|ppt|coding|video|music|podcast|meeting|math|data|super)
         TRANSLATE_TARGET=""
         MSG_ARGS=()
         for arg in "$@"; do
@@ -738,7 +737,7 @@ case "$cmd" in
         [ -z "$MSG" ] && { echo "用法: doubao-cli $cmd [--to-english|--to-chinese] <内容>"; exit 1; }
         declare -A MODE_MAP=(
             [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
-            [image]=image [research]=research [video]=video [music]=music
+            [image]=image [video]=video [music]=music
             [podcast]=podcast [meeting]=meeting [math]=math [data]=data [super]=super
         )
         # Pass translate_target as extra arg for the adapter
