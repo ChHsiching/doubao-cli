@@ -35,7 +35,8 @@ export async function doConversations(): Promise<void> {
   const session = await getSession();
   await session.ensureChrome();
   await session.ensureDaemon();
-  await session.runAdapter("conversations");
+  const result = await session.runAdapter("conversations");
+  console.log(typeof result === "string" ? result : JSON.stringify(result, null, 2));
 }
 
 export async function doNew(): Promise<void> {
