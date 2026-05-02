@@ -189,12 +189,30 @@ do_image() {
         sleep 3
     fi
 
-    # Step 2: Switch to image mode
+    # Step 2: Switch to image mode (must click "更多" first)
     $BB_CMD eval "(function(){
+      // All skill modes live behind '更多' popup
+      const allBtns = Array.from(document.querySelectorAll('button, div'));
+      const moreBtn = allBtns.find(b => b.innerText?.trim() === '更多' && b.getBoundingClientRect().width > 0);
+      if (moreBtn) {
+        moreBtn.click();
+        return 'clicked_more';
+      }
+      return 'no_more';
+    })()" --tab "$tab_id" &>/dev/null
+    sleep 0.5
+    $BB_CMD eval "(function(){
+      for (const b of document.querySelectorAll('button, div[class*=cursor-pointer], [data-value]')) {
+        if (b.innerText?.trim() === '图像生成' && b.getBoundingClientRect().width > 0) {
+          b.click(); return 'clicked_image';
+        }
+      }
+      // Fallback: direct toolbar click
       const btn = Array.from(document.querySelectorAll('button')).find(b =>
         b.innerText?.trim() === '图像生成' && b.getBoundingClientRect().width > 0
       );
-      if (btn) btn.click();
+      if (btn) { btn.click(); return 'clicked_fallback'; }
+      return 'not_found';
     })()" --tab "$tab_id" &>/dev/null
     sleep 3
 
@@ -401,12 +419,14 @@ chat_send_and_poll() {
             fi
             # Clear spinner line before outputting result
             printf '\r%s\r' "$(printf ' %.0s' $(seq 1 40))" >&2
-            local msg mode refs ppt_url conv_id
+            local msg mode refs ppt_url conv_id doc_url images
             msg=$(echo "$poll_out" | jq -r '.message // empty' 2>/dev/null) || true
             mode=$(echo "$poll_out" | jq -r '.thinking_mode // "快速"' 2>/dev/null) || mode="快速"
             refs=$(echo "$poll_out" | jq -r '.references // empty' 2>/dev/null) || true
             ppt_url=$(echo "$poll_out" | jq -r '.ppt_url // empty' 2>/dev/null) || true
             conv_id=$(echo "$poll_out" | jq -r '.conversation_id // empty' 2>/dev/null) || true
+            doc_url=$(echo "$poll_out" | jq -r '.doc_url // empty' 2>/dev/null) || true
+            images=$(echo "$poll_out" | jq -r '.images // empty | if type == "array" then .[] else . end' 2>/dev/null) || true
 
             if [ "$mode" != "快速" ]; then
                 echo "[$mode 模式]" >&2
@@ -421,18 +441,20 @@ chat_send_and_poll() {
                 echo "$poll_out"
             fi
 
-            # Show conversation link for PPT or when content indicates completion
-            if [ -n "$conv_id" ] && [ "${CHAT_POLL_MODE:-}" = "ppt" ]; then
+            # Show conversation link and mode-specific resources
+            if [ -n "$conv_id" ]; then
                 echo "" >&2
                 echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
                 if [ -n "$ppt_url" ]; then
                     echo "PPT 预览: $ppt_url" >&2
                 fi
-            elif [ -n "$conv_id" ] && echo "$msg" | grep -qi '制作完成\|已经为您'; then
-                echo "" >&2
-                echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
-                if [ -n "$ppt_url" ]; then
-                    echo "PPT 预览: $ppt_url" >&2
+                if [ -n "$doc_url" ]; then
+                    echo "文档链接: $doc_url" >&2
+                fi
+                if [ -n "$images" ]; then
+                    echo "$images" | while IFS= read -r img_url; do
+                        [ -n "$img_url" ] && echo "图像: $img_url" >&2
+                    done
                 fi
             fi
             return 0
@@ -684,44 +706,44 @@ case "$cmd" in
         echo "用法: doubao-cli <命令> [参数...]"
         echo ""
         echo "登录:"
-        echo "  doubao-cli login                      交互式登录（手机号+验证码）"
-        echo "  doubao-cli login <手机号>             发送验证码"
-        echo "  doubao-cli login <手机号> <验证码>    发送验证码并登录"
-        echo "  doubao-cli login --web                打开浏览器手动登录"
-        echo "  doubao-cli logout                     退出登录"
+        echo "  doubao-cli login                        交互式登录（手机号+验证码）"
+        echo "  doubao-cli login <手机号>               发送验证码"
+        echo "  doubao-cli login <手机号> <验证码>      发送验证码并登录"
+        echo "  doubao-cli login --web                  打开浏览器手动登录"
+        echo "  doubao-cli logout                       退出登录"
         echo ""
         echo "聊天:"
-        echo "  doubao-cli chat '你好'                                  普通对话"
-        echo "  doubao-cli chat --thinking quick '...'                  快速模式（默认）"
-        echo "  doubao-cli chat --thinking think '...'                  思考模式"
-        echo "  doubao-cli chat --thinking expert '...'                 专家模式"
+        echo "  doubao-cli chat '你好'                                    普通对话"
+        echo "  doubao-cli chat --thinking quick '...'                    快速模式（默认）"
+        echo "  doubao-cli chat --thinking think '...'                    思考模式"
+        echo "  doubao-cli chat --thinking expert '...'                   专家模式"
         echo ""
         echo "功能模式:"
-        echo "  doubao-cli translate --to-english '你好世界'            中译英"
-        echo "  doubao-cli translate --to-chinese 'Hello World'         英译中"
-        echo "  doubao-cli coding '用python写快排'                      编程助手"
-        echo "  doubao-cli math '证明泰勒定理'                          解题答疑"
-        echo "  doubao-cli image '画一只猫'                             图像生成"
-        echo "  doubao-cli ppt 'AI发展史'                               PPT生成"
-        echo "  doubao-cli writing '写一份自我介绍'                      帮我写作"
-        echo "  doubao-cli video '宇宙大爆炸'                           视频生成"
-        echo "  doubao-cli music '猪猪之歌'                             音乐生成"
-        echo "  doubao-cli podcast 'linux内核最新漏洞'                  AI播客"
-        echo "  doubao-cli data '排序：4,6,2,12,5'                      数据分析"
-        echo "  doubao-cli super '研究vibe coding'                      超能模式"
+        echo "  doubao-cli translate --to-english '你好世界'              中译英"
+        echo "  doubao-cli translate --to-chinese 'Hello World'           英译中"
+        echo "  doubao-cli coding '用python写快排'                        编程助手"
+        echo "  doubao-cli solve '证明泰勒定理'                           解题答疑（支持各学科）"
+        echo "  doubao-cli image '画一只猫'                               图像生成"
+        echo "  doubao-cli ppt 'AI发展史'                                 PPT生成"
+        echo "  doubao-cli writing '写一份自我介绍'                        帮我写作"
+        echo "  doubao-cli video '宇宙大爆炸'                             视频生成"
+        echo "  doubao-cli music '猪猪之歌'                               音乐生成"
+        echo "  doubao-cli podcast 'linux内核最新漏洞'                    AI播客"
+        echo "  doubao-cli data '排序：4,6,2,12,5'                        数据分析"
+        echo "  doubao-cli super '研究vibe coding'                        超能模式"
         echo ""
         echo "会话管理:"
-        echo "  doubao-cli list                   查看会话列表"
-        echo "  doubao-cli load <ID>              加载历史会话"
-        echo "  doubao-cli new                    新建会话"
-        echo "  doubao-cli last                   最新回复"
-        echo "  doubao-cli retry                  重新生成最新回复"
-        echo "  doubao-cli delete <ID>            删除会话"
+        echo "  doubao-cli list                     查看会话列表"
+        echo "  doubao-cli load <ID>                加载历史会话"
+        echo "  doubao-cli new                      新建会话"
+        echo "  doubao-cli last                     最新回复"
+        echo "  doubao-cli retry                    重新生成最新回复"
+        echo "  doubao-cli delete <ID>              删除会话"
         echo ""
         echo "系统:"
-        echo "  doubao-cli account                账户信息"
-        echo "  doubao-cli daemon                 daemon状态"
-        echo "  doubao-cli stop                   停止daemon"
+        echo "  doubao-cli account                  账户信息"
+        echo "  doubao-cli daemon                   daemon状态"
+        echo "  doubao-cli stop                     停止daemon"
         ;;
 
     login)
@@ -756,10 +778,11 @@ case "$cmd" in
     image)
         MSG="${*:-}"
         [ -z "$MSG" ] && { echo "用法: doubao-cli image <图片描述>"; exit 1; }
-        do_image "$MSG"
+        CHAT_POLL_MAX_WAIT=120 CHAT_POLL_STABLE_COUNT=3 CHAT_POLL_MODE=image \
+            chat_send_and_poll "$MSG" "image" ""
         ;;
 
-    translate|writing|ppt|coding|video|music|podcast|math|data|super)
+    translate|writing|ppt|coding|video|music|podcast|solve|data|super)
         TRANSLATE_TARGET=""
         MSG_ARGS=()
         for arg in "$@"; do
@@ -783,13 +806,19 @@ case "$cmd" in
         declare -A MODE_MAP=(
             [translate]=translate [writing]=writing [ppt]=ppt [coding]=coding
             [image]=image [video]=video [music]=music
-            [podcast]=podcast [math]=math [data]=data [super]=super
+            [podcast]=podcast [solve]=solve [data]=data [super]=super
         )
         # Pass translate_target as extra arg for the adapter
         if [ "$cmd" = "translate" ] && [ -n "$TRANSLATE_TARGET" ]; then
             chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" "" "$TRANSLATE_TARGET"
         elif [ "$cmd" = "ppt" ]; then
             CHAT_POLL_MAX_WAIT=1800 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=ppt \
+                chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+        elif [ "$cmd" = "writing" ]; then
+            CHAT_POLL_MAX_WAIT=600 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=writing \
+                chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
+        elif [ "$cmd" = "super" ]; then
+            CHAT_POLL_MAX_WAIT=600 CHAT_POLL_STABLE_COUNT=5 CHAT_POLL_MODE=super \
                 chat_send_and_poll "$MSG" "${MODE_MAP[$cmd]}" ""
         elif [ "$cmd" = "video" ] || [ "$cmd" = "music" ] || [ "$cmd" = "podcast" ]; then
             CHAT_POLL_MAX_WAIT=600 CHAT_POLL_STABLE_COUNT=3 CHAT_POLL_MODE=generate \
