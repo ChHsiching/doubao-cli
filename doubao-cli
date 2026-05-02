@@ -310,6 +310,10 @@ chat_send_and_poll() {
         exit 1
     fi
 
+    # Always start a new conversation to avoid interrupting previous ones
+    $BB_CMD eval "location.href='https://www.doubao.com/chat/'" --tab "$tab_id" &>/dev/null
+    sleep 3
+
     # Wait for page readiness: textarea must have React fiber
     local fiber_retries=0
     for i in $(seq 1 15); do
