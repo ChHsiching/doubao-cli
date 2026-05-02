@@ -4,3 +4,5 @@ error.log
 verification_code.txt
 *.log
 *.pid
+dist/
+src/adapters-data.ts
