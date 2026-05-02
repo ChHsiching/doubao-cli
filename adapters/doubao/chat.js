@@ -93,7 +93,7 @@ async function(args) {
     await new Promise(r => setTimeout(r, 800));
   }
 
-  const beforeCount = document.querySelectorAll('[class*="markdown-body"]').length;
+  const beforeCount = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
   const beforeImgs = new Set(Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]')).map(i => i.src));
 
   if (ta) {
@@ -116,7 +116,7 @@ async function(args) {
   let lastLen = 0, stable = 0;
   for (let i = 0; i < 40; i++) {
     await new Promise(r => setTimeout(r, 500));
-    const count = document.querySelectorAll('[class*="markdown-body"]').length;
+    const count = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
     if (count <= beforeCount) continue;
     const text = document.querySelectorAll('[class*="markdown-body"]')[count - 1]?.innerText?.trim() || '';
     const imgs = Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]')).map(i => i.src).filter(u => !beforeImgs.has(u));
@@ -125,7 +125,7 @@ async function(args) {
     else if (len > 0) { stable = 0; lastLen = len; }
   }
 
-  const count = document.querySelectorAll('[class*="markdown-body"]').length;
+  const count = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
   if (count > beforeCount) {
     const text = document.querySelectorAll('[class*="markdown-body"]')[count - 1]?.innerText?.trim() || '';
     const imgs = Array.from(document.querySelectorAll('img[src*="byteimg.com/ocean-cloud"]')).map(i => i.src).filter(u => !beforeImgs.has(u));

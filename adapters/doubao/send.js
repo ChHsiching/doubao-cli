@@ -178,7 +178,7 @@ async function(args) {
   else if (ta2) submitEl = ta2;
   else submitEl = ta || ce;
 
-  const beforeCount = document.querySelectorAll('[class*="markdown-body"]').length;
+  const beforeCount = Array.from(document.querySelectorAll('[class*="markdown-body"]')).filter(md => !md.closest('[data-thinking-box-collapsed-step-content]')).length;
 
   // ── Set value ──
   // For skill modes, message was pre-filled into textarea before mode switch.

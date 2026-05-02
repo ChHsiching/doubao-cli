@@ -16,13 +16,17 @@ function(args) {
   }
   const beforeCount = parseInt(args.before_count) || 0;
   const prevLen = parseInt(args.prev_len) || 0;
-  const mdCount = document.querySelectorAll('[class*="markdown-body"]').length;
+
+  // Exclude thinking-chain markdown-bodies: elements inside [data-thinking-box-collapsed-step-content]
+  const allMd = Array.from(document.querySelectorAll('[class*="markdown-body"]'));
+  const realMd = allMd.filter(md => !md.closest('[data-thinking-box-collapsed-step-content]'));
+  const mdCount = realMd.length;
 
   if (mdCount <= beforeCount) {
-    return { status: 'waiting', mdCount, beforeCount };
+    return { status: 'waiting', mdCount: allMd.length, realMdCount: mdCount, beforeCount };
   }
 
-  const newMd = document.querySelectorAll('[class*="markdown-body"]')[mdCount - 1];
+  const newMd = realMd[mdCount - 1];
   if (!newMd) return { status: 'waiting', mdCount, beforeCount };
 
   const text = newMd.innerText?.trim() || '';
