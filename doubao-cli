@@ -368,7 +368,7 @@ chat_send_and_poll() {
 
         # Detect stale page: if still "waiting" after 30s, refresh and retry
         # Skip for generation modes (ppt/video/music/podcast) where waiting is expected
-        if [ -z "$CHAT_POLL_MODE" ] && echo "$poll_out" | grep -q '"status": "waiting"'; then
+        if [ -z "${CHAT_POLL_MODE:-}" ] && echo "$poll_out" | grep -q '"status": "waiting"'; then
             stale_count=$((stale_count + 1))
             if [ $stale_count -ge 30 ]; then
                 # Check for local_ URL (server conversation creation failed)
@@ -422,7 +422,7 @@ chat_send_and_poll() {
             fi
 
             # Show conversation link for PPT or when content indicates completion
-            if [ -n "$conv_id" ] && [ "$CHAT_POLL_MODE" = "ppt" ]; then
+            if [ -n "$conv_id" ] && [ "${CHAT_POLL_MODE:-}" = "ppt" ]; then
                 echo "" >&2
                 echo "对话链接: https://www.doubao.com/chat/$conv_id" >&2
                 if [ -n "$ppt_url" ]; then
