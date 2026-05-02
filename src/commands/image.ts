@@ -2,16 +2,12 @@ import { getSession } from "../browser.js";
 
 export async function doImage(message: string): Promise<void> {
   const session = await getSession();
-  await session.ensureChrome();
-  await session.ensureDaemon();
-  const tabId = await session.getDoubaoTab();
-  if (!(await session.checkLogin(tabId))) {
-    throw new Error("Not logged in. Run: doubao-cli login");
-  }
+  const tabId = await session.requireLogin();
+  await session.waitForFiberReady(tabId);
 
   let curUrl = await session.evalJs("location.href");
 
-  // Ensure server conversation
+  // Ensure server conversation (not greeting page)
   if (!/\/chat\/\d+/.test(curUrl)) {
     await session.runAdapter("send", { message: "." });
     for (let i = 0; i < 30; i++) {
@@ -25,47 +21,30 @@ export async function doImage(message: string): Promise<void> {
     await new Promise((r) => setTimeout(r, 3000));
   }
 
-  // Switch to image mode
-  await session.runAdapter("send", { message, mode: "image" });
+  // Switch to image mode (click '图像生成' button)
+  await session.evalJs(`(function(){
+    const btn = Array.from(document.querySelectorAll('button')).find(b =>
+      b.innerText?.trim() === '图像生成' && b.getBoundingClientRect().width > 0
+    );
+    if (btn) btn.click();
+  })()`);
+  await new Promise((r) => setTimeout(r, 3000));
 
-  if (snap?.hasRect) {
-    await session.evalJs(`(function(){
-      const ce = document.querySelector('[contenteditable="true"]');
-      if (ce) ce.focus();
-    })()`);
-    await new Promise((r) => setTimeout(r, 300));
-    await session.evalJs(`(function(){
-      const ce = document.querySelector('[contenteditable="true"]');
-      if (!ce) return;
-      ce.focus();
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(ce);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.execCommand('insertText', false, ${JSON.stringify(message)});
-    })()`);
-  } else {
-    await session.evalJs(`(function(){
-      const ce = document.querySelector('[contenteditable="true"]');
-      if (ce) ce.focus();
-    })()`);
-    await new Promise((r) => setTimeout(r, 300));
-    await session.evalJs(`(function(){
-      const ce = document.querySelector('[contenteditable="true"]');
-      if (!ce) return;
-      ce.focus();
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(ce);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.execCommand('insertText', false, ${JSON.stringify(message)});
-    })()`);
-  }
+  // Type message into contenteditable
+  await session.evalJs(`(function(){
+    const ce = document.querySelector('[contenteditable="true"]');
+    if (!ce) return;
+    ce.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(ce);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand('insertText', false, ${JSON.stringify(message)});
+  })()`);
   await new Promise((r) => setTimeout(r, 1000));
 
-  // Click send
+  // Click send button via fiber onClick
   const clickResult = await session.evalJs(`(function(){
     const btns = Array.from(document.querySelectorAll('button'));
     const sendBtn = btns.find(b => {
@@ -115,7 +94,7 @@ export async function doImage(message: string): Promise<void> {
 
   console.log("Generating image...");
 
-  // Poll for image
+  // Poll for image response
   const beforeCount = await session.evalJs(
     "document.querySelectorAll('[class*=markdown-body]').length",
   );
