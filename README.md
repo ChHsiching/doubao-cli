@@ -1,3 +1,5 @@
+
+
 # doubao-cli
 
 A command-line interface for interacting with Doubao AI through browser automation.
@@ -45,6 +47,7 @@ npm install
 
 - [Google Chrome](https://www.google.com/chrome/) or Chromium
 - A Doubao account
+- Node.js >=18 (for npm or source installation)
 
 ### Login
 
